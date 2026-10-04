@@ -13,6 +13,7 @@ namespace Resturant_Management.Login
             InitializeComponent();
             btnSigin.Click += BtnSigin_Click;
             txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSigin_Click(s, e); };
+            txtUsername.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) txtPassword.Focus(); };
         }
 
         private void BtnSigin_Click(object? sender, EventArgs e)
@@ -20,9 +21,17 @@ namespace Resturant_Management.Login
             string username = txtUsername.Text.Trim();
             string password = txtPassword.Text.Trim();
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(username))
             {
-                MessageBox.Show("Please enter both username and password.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please enter your username.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtUsername.Focus();
+                return;
+            }
+
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("Please enter your password.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtPassword.Focus();
                 return;
             }
 
@@ -41,10 +50,11 @@ namespace Resturant_Management.Login
                         return;
                     }
 
+                    int userId = Convert.ToInt32(row["UserID"]);
                     string storedHash = row["PasswordHash"]?.ToString() ?? "";
-                    if (storedHash == password || storedHash == "REPLACE_WITH_HASH" || password == "admin123" || password == "admin")
+
+                    if (SecurityHelper.VerifyPassword(password, storedHash, userId))
                     {
-                        int userId = Convert.ToInt32(row["UserID"]);
                         string fullName = row["FullName"]?.ToString() ?? username;
                         string role = row["Role"]?.ToString() ?? "Cashier";
 
@@ -52,17 +62,32 @@ namespace Resturant_Management.Login
 
                         this.Hide();
                         dashboard mainDash = new dashboard();
-                        mainDash.FormClosed += (s, args) => this.Close();
+                        mainDash.FormClosed += (s, args) =>
+                        {
+                            if (!UserSession.IsLoggedIn)
+                            {
+                                txtPassword.Clear();
+                                this.Show();
+                            }
+                            else
+                            {
+                                this.Close();
+                            }
+                        };
                         mainDash.Show();
                     }
                     else
                     {
                         MessageBox.Show("Invalid password. Please try again.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        txtPassword.SelectAll();
+                        txtPassword.Focus();
                     }
                 }
                 else
                 {
                     MessageBox.Show("User not found.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    txtUsername.SelectAll();
+                    txtUsername.Focus();
                 }
             }
             catch (Exception ex)

@@ -17,15 +17,51 @@ namespace Resturant_Management.Item_Group
         private DataGridView grid = null!;
         private Guna2TextBox txtSearchBox = null!;
 
+        private bool _isInitialized = false;
+
         public ItemGroupList()
         {
             InitializeComponent();
-            BuildUi();
-            LoadGroupData();
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
+            this.Load += ItemGroup_Load;
+            this.VisibleChanged += (s, e) =>
+            {
+                if (this.Visible && !DesignTimeHelper.IsInDesignMode(this))
+                {
+                    if (!_isInitialized)
+                        InitRuntime();
+                    else
+                        LoadGroupData();
+                }
+            };
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            if (!DesignTimeHelper.IsInDesignMode(this) && !_isInitialized)
+            {
+                InitRuntime();
+            }
         }
 
         private void ItemGroup_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
+            InitRuntime();
+        }
+
+        private void InitRuntime()
+        {
+            if (_isInitialized) return;
+            _isInitialized = true;
+
+            BuildUi();
+            LoadGroupData();
         }
 
         private void BuildUi()

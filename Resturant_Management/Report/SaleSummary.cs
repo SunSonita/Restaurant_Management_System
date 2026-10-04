@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
+using Guna.UI2.WinForms;
 using Microsoft.Data.SqlClient;
 using Resturant_Management.Data;
 
@@ -10,30 +11,105 @@ namespace Resturant_Management.Report
     public partial class SaleSummary : UserControl
     {
         private bool _isInitialized = false;
+        private Guna2Button btnExport = null!;
+        private Guna2Button btnPrint = null!;
+        private Guna2Button btnReset = null!;
 
         public SaleSummary()
         {
             InitializeComponent();
             this.Dock = DockStyle.Fill;
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             txtSearch.Text = "";
-            txtSearch.PlaceholderText = "Search...";
+            txtSearch.PlaceholderText = "Search invoice, creator, table...";
+
+            CreateActionButtons();
+
             this.Resize += (s, e) => ApplyResponsiveLayout();
             SetupFilters();
             _isInitialized = true;
-            LoadReportData(false);
             this.Load += SaleSummary_Load;
 
             btnFilter.Click += (s, e) => LoadReportData(true);
-            txtSearch.TextChanged += (s, e) => LoadReportData(false);
+            txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; LoadReportData(false); } };
             comboCreator.SelectedIndexChanged += (s, e) => { if (_isInitialized) LoadReportData(false); };
-            cmbTypeReport.SelectedIndexChanged += (s, e) => { if (_isInitialized) LoadReportData(false); };
+            cmbTypeReport.SelectedIndexChanged += (s, e) => { if (_isInitialized) { ConfigureGridColumns(); LoadReportData(false); } };
+        }
+
+        private void CreateActionButtons()
+        {
+            // Reset Button
+            btnReset = new Guna2Button
+            {
+                Text = "Reset",
+                Size = new Size(80, 48),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(140, 150, 165),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnReset.Click += (s, e) => ResetFilters();
+
+            // Export CSV Button
+            btnExport = new Guna2Button
+            {
+                Text = "Export CSV",
+                Size = new Size(105, 48),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnExport.Click += (s, e) => ReportExporter.ExportToCsv(gridDataitem, "SaleSummaryReport");
+
+            // Print Report Button
+            btnPrint = new Guna2Button
+            {
+                Text = "Print",
+                Size = new Size(85, 48),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(0, 122, 204),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnPrint.Click += (s, e) =>
+            {
+                string subtitle = $"Period: {DateFrom.Value:yyyy-MM-dd} {TimeFrom.Value:HH:mm} to {DateTo.Value:yyyy-MM-dd} {TimeTo.Value:HH:mm} | Type: {cmbTypeReport.SelectedItem} | Creator: {comboCreator.SelectedItem}";
+                ReportExporter.PrintReport(gridDataitem, "Sale Summary Report", subtitle);
+            };
+
+            pnlInfoReportSale.Controls.Add(btnReset);
+            pnlInfoReportSale.Controls.Add(btnExport);
+            pnlInfoReportSale.Controls.Add(btnPrint);
         }
 
         private void SaleSummary_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             ApplyResponsiveLayout();
+            ConfigureGridColumns();
             SetupFilters();
             _isInitialized = true;
+            LoadReportData(false);
+        }
+
+        private void ResetFilters()
+        {
+            DateFrom.Value = DateTime.Today.AddDays(-7);
+            DateTo.Value = DateTime.Today;
+            TimeFrom.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 0, 0, 0);
+            TimeTo.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 59);
+            txtSearch.Text = "";
+            if (comboCreator.Items.Count > 0) comboCreator.SelectedIndex = 0;
+            if (cmbTypeReport.Items.Count > 0) cmbTypeReport.SelectedIndex = 0;
+            ConfigureGridColumns();
             LoadReportData(false);
         }
 
@@ -63,11 +139,66 @@ namespace Resturant_Management.Report
                 cmbTypeReport.Items.Add("Summary by Order");
                 cmbTypeReport.Items.Add("Daily Summary");
                 cmbTypeReport.Items.Add("Summary by Creator");
+                cmbTypeReport.Items.Add("Summary by Payment Method");
                 cmbTypeReport.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing filters: {ex.Message}");
+            }
+        }
+
+        private void ConfigureGridColumns()
+        {
+            gridDataitem.Columns.Clear();
+            gridDataitem.AutoGenerateColumns = false;
+            string reportType = cmbTypeReport.SelectedItem?.ToString() ?? "Summary by Order";
+
+            if (reportType == "Daily Summary")
+            {
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "No", Width = 50 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Sale Date", Width = 130 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Orders", Width = 80 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis (KHR)", Width = 170 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount Item (KHR)", Width = 150 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total After Dis (KHR)", Width = 160 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid (KHR)", Width = 140 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total (USD)", Width = 120 });
+            }
+            else if (reportType == "Summary by Creator")
+            {
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "No", Width = 50 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Creator / Cashier", Width = 180 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Orders", Width = 80 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis (KHR)", Width = 170 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount Item (KHR)", Width = 150 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total After Dis (KHR)", Width = 160 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid (KHR)", Width = 140 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total (USD)", Width = 120 });
+            }
+            else if (reportType == "Summary by Payment Method")
+            {
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "No", Width = 50 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Payment Method", Width = 180 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Transactions", Width = 100 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Received", Width = 160 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total (USD Approx)", Width = 150 });
+            }
+            else // Summary by Order
+            {
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "No", Width = 45 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Posting Date/Time", Width = 140 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Invoice No", Width = 110 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Creator", Width = 110 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Table", Width = 100 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis", Width = 120 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount Item", Width = 110 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total After Dis", Width = 120 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Grand Total", Width = 120 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid Amount", Width = 110 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Change", Width = 90 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Method", Width = 85 });
+                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Status", Width = 80 });
             }
         }
 
@@ -110,6 +241,7 @@ namespace Resturant_Management.Report
                     string sql = @"
 SELECT 
     CONVERT(varchar(10), PostingDate, 120) AS PostDate,
+    COUNT(OrderID) AS OrderCount,
     SUM(TotalBeforeDis) AS TotalBeforeDis,
     SUM(DiscountItem) AS DiscountItem,
     SUM(TotalAfterDis) AS TotalAfterDis,
@@ -144,10 +276,12 @@ ORDER BY PostDate DESC;";
                         gridDataitem.Rows.Add(
                             rowNo++,
                             r["PostDate"]?.ToString(),
+                            r["OrderCount"]?.ToString(),
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2")
+                            paid.ToString("N2"),
+                            (aft / 4000m).ToString("N2")
                         );
                     }
                 }
@@ -156,6 +290,7 @@ ORDER BY PostDate DESC;";
                     string sql = @"
 SELECT 
     Creator,
+    COUNT(OrderID) AS OrderCount,
     SUM(TotalBeforeDis) AS TotalBeforeDis,
     SUM(DiscountItem) AS DiscountItem,
     SUM(TotalAfterDis) AS TotalAfterDis,
@@ -190,10 +325,49 @@ ORDER BY Creator ASC;";
                         gridDataitem.Rows.Add(
                             rowNo++,
                             r["Creator"]?.ToString(),
+                            r["OrderCount"]?.ToString(),
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2")
+                            paid.ToString("N2"),
+                            (aft / 4000m).ToString("N2")
+                        );
+                    }
+                }
+                else if (reportType == "Summary by Payment Method")
+                {
+                    string sql = @"
+SELECT 
+    PaymentMethod,
+    COUNT(OrderID) AS OrderCount,
+    SUM(Paid) AS TotalPaid
+FROM dbo.vw_SaleSummary
+WHERE (PostingDate >= @Start AND PostingDate <= @End)
+  AND (@Creator = 'All Creators' OR Creator = @Creator)
+  AND (@Search = '' OR PaymentMethod LIKE @Pattern)
+GROUP BY PaymentMethod
+ORDER BY PaymentMethod ASC;";
+
+                    dt = DbHelper.ExecuteQuery(sql,
+                        new SqlParameter("@Start", startDateTime),
+                        new SqlParameter("@End", endDateTime),
+                        new SqlParameter("@Creator", selectedCreator),
+                        new SqlParameter("@Search", search),
+                        new SqlParameter("@Pattern", $"%{search}%"));
+
+                    int rowNo = 1;
+                    foreach (DataRow r in dt.Rows)
+                    {
+                        decimal paid = r["TotalPaid"] != DBNull.Value ? Convert.ToDecimal(r["TotalPaid"]) : 0m;
+                        sumPaid += paid;
+                        sumAfterDis += paid;
+
+                        gridDataitem.Rows.Add(
+                            rowNo++,
+                            r["PaymentMethod"]?.ToString(),
+                            r["OrderCount"]?.ToString(),
+                            paid.ToString("N2") + " KHR",
+                            (paid / 4000m).ToString("N2") + " USD"
                         );
                     }
                 }
@@ -202,17 +376,23 @@ ORDER BY Creator ASC;";
                     string sql = @"
 SELECT 
     OrderID,
+    InvoiceNo,
     OrderNo,
     PostingDate,
     Creator,
+    TableName,
     TotalBeforeDis,
     DiscountItem,
     TotalAfterDis,
-    Paid
+    GrandTotal,
+    Paid,
+    ChangeAmount,
+    PaymentMethod,
+    PaymentStatus
 FROM dbo.vw_SaleSummary
 WHERE (PostingDate >= @Start AND PostingDate <= @End)
   AND (@Creator = 'All Creators' OR Creator = @Creator)
-  AND (@Search = '' OR OrderNo LIKE @Pattern OR Creator LIKE @Pattern)
+  AND (@Search = '' OR InvoiceNo LIKE @Pattern OR OrderNo LIKE @Pattern OR Creator LIKE @Pattern OR TableName LIKE @Pattern OR PaymentMethod LIKE @Pattern)
 ORDER BY PostingDate DESC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
@@ -228,22 +408,33 @@ ORDER BY PostingDate DESC;";
                         decimal bef = r["TotalBeforeDis"] != DBNull.Value ? Convert.ToDecimal(r["TotalBeforeDis"]) : 0m;
                         decimal dis = r["DiscountItem"] != DBNull.Value ? Convert.ToDecimal(r["DiscountItem"]) : 0m;
                         decimal aft = r["TotalAfterDis"] != DBNull.Value ? Convert.ToDecimal(r["TotalAfterDis"]) : 0m;
+                        decimal grand = r["GrandTotal"] != DBNull.Value ? Convert.ToDecimal(r["GrandTotal"]) : aft;
                         decimal paid = r["Paid"] != DBNull.Value ? Convert.ToDecimal(r["Paid"]) : 0m;
+                        decimal chg = r["ChangeAmount"] != DBNull.Value ? Convert.ToDecimal(r["ChangeAmount"]) : 0m;
 
                         sumBeforeDis += bef;
                         sumDisItem += dis;
                         sumAfterDis += aft;
                         sumPaid += paid;
 
+                        string invNo = r["InvoiceNo"]?.ToString() ?? "";
+                        if (string.IsNullOrEmpty(invNo)) invNo = r["OrderNo"]?.ToString() ?? "";
+
                         gridDataitem.Rows.Add(
-                            r["OrderNo"]?.ToString() ?? rowNo.ToString(),
+                            rowNo++,
                             Convert.ToDateTime(r["PostingDate"]).ToString("yyyy-MM-dd HH:mm"),
+                            invNo,
+                            r["Creator"]?.ToString(),
+                            r["TableName"]?.ToString(),
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2")
+                            grand.ToString("N2"),
+                            paid.ToString("N2"),
+                            chg.ToString("N2"),
+                            r["PaymentMethod"]?.ToString(),
+                            r["PaymentStatus"]?.ToString()
                         );
-                        rowNo++;
                     }
                 }
 
@@ -259,10 +450,10 @@ ORDER BY PostingDate DESC;";
             }
 
             // Update summary labels
-            if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR";
-            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount Item : {sumDisItem:N2} KHR";
-            if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Total After Discount : {sumAfterDis:N2} KHR";
-            if (lbGrandTotal != null) lbGrandTotal.Text = $"Grand Total : {sumAfterDis:N2} KHR";
+            if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR ({(sumBeforeDis / 4000m):N2} USD)";
+            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount Item : {sumDisItem:N2} KHR ({(sumDisItem / 4000m):N2} USD)";
+            if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Total After Discount : {sumAfterDis:N2} KHR ({(sumAfterDis / 4000m):N2} USD)";
+            if (lbGrandTotal != null) lbGrandTotal.Text = $"Grand Total : {sumAfterDis:N2} KHR ({(sumAfterDis / 4000m):N2} USD)";
             AlignSummaryLabels();
         }
 
@@ -283,17 +474,41 @@ ORDER BY PostingDate DESC;";
                 Math.Max(450, this.ClientSize.Height - marginTop - marginBottom)
             );
 
-            // Right-align search box above the grid
-            int padRight = 25;
-            if (txtSearch != null)
+            // Right-align search box & action buttons
+            int rightX = pnlInfoReportSale.Width - 25;
+
+            if (btnFilter != null)
             {
-                txtSearch.Location = new Point(pnlInfoReportSale.Width - txtSearch.Width - padRight, 168);
+                btnFilter.Location = new Point(rightX - btnFilter.Width, 31);
+                rightX -= (btnFilter.Width + 8);
             }
 
-            // Summary Totals: neatly aligned at the bottom right
+            if (btnReset != null)
+            {
+                btnReset.Location = new Point(rightX - btnReset.Width, 31);
+                rightX -= (btnReset.Width + 8);
+            }
+
+            if (btnPrint != null)
+            {
+                btnPrint.Location = new Point(rightX - btnPrint.Width, 31);
+                rightX -= (btnPrint.Width + 8);
+            }
+
+            if (btnExport != null)
+            {
+                btnExport.Location = new Point(rightX - btnExport.Width, 31);
+            }
+
+            if (txtSearch != null)
+            {
+                txtSearch.Location = new Point(pnlInfoReportSale.Width - txtSearch.Width - 25, 168);
+            }
+
+            // Summary Totals: neatly aligned at bottom right
             AlignSummaryLabels();
 
-            // DataGridView: Fills from Y = 218 down to the summary section
+            // DataGridView fills from Y = 218 down to the summary section
             int gridTop = 218;
             int summaryReserved = 135;
             int gridHeight = Math.Max(150, pnlInfoReportSale.Height - gridTop - summaryReserved);

@@ -30,6 +30,9 @@ namespace Resturant_Management.Table
 
         private void EditTable_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             try
             {
                 DataTable dtGroups = DbHelper.ExecuteQuery("SELECT TableGroupID, GroupName FROM dbo.TABLE_GROUP ORDER BY GroupName");

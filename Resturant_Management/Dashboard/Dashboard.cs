@@ -36,6 +36,12 @@ namespace Resturant_Management
         private Panel pnlSearch = null!;
         private Image? logoImage;
 
+        private Guna2Button btnStockInventory = null!;
+        private Label lblUserName = null!;
+        private Label lblUserRole = null!;
+        private Guna2Button btnLogout = null!;
+        private Guna2Button btnExitApp = null!;
+
         private class ButtonBackup
         {
             public string Text = "";
@@ -103,6 +109,9 @@ namespace Resturant_Management
 
         private void dashboard_Load_1(object sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             try
             {
                 sidebar.AutoScroll = true;
@@ -140,10 +149,44 @@ namespace Resturant_Management
                     }
                 }
 
+                if (btnStockInventory == null)
+                {
+                    btnStockInventory = new Guna2Button
+                    {
+                        Text = "Stock & Purchases",
+                        BorderRadius = 10,
+                        FillColor = Color.White,
+                        ForeColor = Color.Black,
+                        Font = new Font("Segoe UI", 10F),
+                        TextAlign = HorizontalAlignment.Left,
+                        ImageAlign = HorizontalAlignment.Left,
+                        ImageOffset = new Point(15, 0),
+                        TextOffset = new Point(25, 0),
+                        Height = RowH,
+                        Dock = DockStyle.Top
+                    };
+                    btnStockInventory.Click += (s, ev) =>
+                    {
+                        if (UserSession.CanManageInventory)
+                        {
+                            LoadView(new Resturant_Management.Inventory.InventoryManagement());
+                        }
+                        else
+                        {
+                            MessageBox.Show("Inventory management requires Manager or Admin permissions.", "Access Restricted", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    };
+                }
+
+                if (!Inventory.Controls.Contains(btnStockInventory))
+                {
+                    Inventory.Controls.Add(btnStockInventory);
+                }
+
                 btninventory.Dock = DockStyle.Top;
                 btninventory.Height = RowH;
 
-                Guna2Button[] level1SubButtons = { btnItemGroup, btnItemMasterData, btnTable };
+                Guna2Button[] level1SubButtons = { btnItemGroup, btnItemMasterData, btnStockInventory, btnTable };
                 foreach (Guna2Button btn in level1SubButtons)
                 {
                     if (btn != null)
@@ -177,12 +220,21 @@ namespace Resturant_Management
                 btninventory.BringToFront();
                 btnItemGroup.BringToFront();
                 btnItemMasterData.BringToFront();
+                btnStockInventory.BringToFront();
                 btnTable.BringToFront();
                 btnTableGroup.BringToFront();
                 btnTableName.BringToFront();
 
                 Inventory.Height = RowH;
 
+                if (!UserSession.CanManageTables)
+                {
+                    btnTable.Visible = false;
+                    btnTableGroup.Visible = false;
+                    btnTableName.Visible = false;
+                }
+
+                SetupHeaderUserProfile();
                 StyleSidebar();
                 InitializeDashboardView();
             }
@@ -285,7 +337,7 @@ namespace Resturant_Management
             }
 
             foreach (var b in new[] { btndashboard, btnPOS, btninventory, btnReport,
-                                      btnItemGroup, btnItemMasterData, btnTable,
+                                      btnItemGroup, btnItemMasterData, btnStockInventory, btnTable,
                                       btnTableGroup, btnTableName })
                 b.Height = RowH;
             Inventory.Height = RowH;
@@ -299,7 +351,7 @@ namespace Resturant_Management
             Inventory.FillColor = Color.White;
 
             // Sub rows under Inventory
-            foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnTable, btnTableGroup, btnTableName })
+            foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnStockInventory, btnTable, btnTableGroup, btnTableName })
                 StyleBtn(b, 10F);
             AddChevron(btnTable, 38);          // Table also has a dropdown
 
@@ -355,7 +407,8 @@ namespace Resturant_Management
             btnTableName.Visible = false;
             btnItemGroup.Visible = !collapse;
             btnItemMasterData.Visible = !collapse;
-            btnTable.Visible = !collapse;
+            btnStockInventory.Visible = !collapse;
+            btnTable.Visible = !collapse && UserSession.CanManageTables;
 
             // top-level buttons
             Guna2Button[] topButtons = { btndashboard, btnPOS, btninventory, btnReport };
@@ -387,7 +440,7 @@ namespace Resturant_Management
             }
 
             // sub buttons keep their indent
-            foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnTable })
+            foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnStockInventory, btnTable })
             {
                 b.ImageOffset = new Point(15, 0);
                 b.TextOffset = new Point(25, 0);
@@ -482,7 +535,8 @@ namespace Resturant_Management
             }
             else
             {
-                Inventory.Height = RowH * 4;
+                int subItemCount = UserSession.CanManageTables ? 4 : 3;
+                Inventory.Height = RowH * (1 + subItemCount);
                 isInventoryExpanded = true;
             }
 
@@ -502,7 +556,7 @@ namespace Resturant_Management
                 if (btnTableName != null) btnTableName.Visible = false;
                 isTableExpanded = false;
 
-                Inventory.Height = RowH * 4;
+                Inventory.Height = RowH * 5;
             }
             else
             {
@@ -510,7 +564,7 @@ namespace Resturant_Management
                 if (btnTableName != null) btnTableName.Visible = true;
                 isTableExpanded = true;
 
-                Inventory.Height = RowH * 6;      // header + 3 subs + 2 table subs
+                Inventory.Height = RowH * 7;      // header + 4 subs + 2 table subs
             }
         }
 
@@ -784,7 +838,7 @@ GROUP BY MONTH(PostingDate);";
                 IsValueShownAsLabel = false // Hide zero labels over empty bars
             };
 
-            string[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep" };
+            string[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
             // Render empty month ticks cleanly across X-axis without label clutter
             for (int i = 0; i < months.Length; i++)
@@ -836,6 +890,127 @@ GROUP BY MONTH(PostingDate);";
             chart.Legends.Add(legend);
 
             return chart;
+        }
+
+        private void SetupHeaderUserProfile()
+        {
+            if (header == null) return;
+
+            header.Controls.Clear();
+
+            label1 = new Label
+            {
+                Text = "Restaurant Management System",
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(20, 24)
+            };
+            header.Controls.Add(label1);
+
+            FlowLayoutPanel pnlUser = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 14, 20, 10)
+            };
+
+            Panel pnlText = new Panel
+            {
+                Width = 200,
+                Height = 52,
+                BackColor = Color.Transparent
+            };
+
+            lblUserName = new Label
+            {
+                Text = string.IsNullOrEmpty(UserSession.FullName) ? UserSession.Username : UserSession.FullName,
+                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
+                ForeColor = Color.White,
+                Dock = DockStyle.Top,
+                Height = 24,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
+            lblUserRole = new Label
+            {
+                Text = $"Role: {UserSession.Role.ToUpper()}",
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(225, 245, 255),
+                Dock = DockStyle.Bottom,
+                Height = 22,
+                TextAlign = ContentAlignment.TopRight
+            };
+
+            pnlText.Controls.Add(lblUserRole);
+            pnlText.Controls.Add(lblUserName);
+
+            if (PicProfile == null)
+            {
+                PicProfile = new Guna.UI2.WinForms.Guna2CirclePictureBox();
+            }
+            PicProfile.Size = new Size(46, 46);
+            PicProfile.Margin = new Padding(8, 3, 12, 0);
+            PicProfile.Cursor = Cursors.Hand;
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                path.AddEllipse(0, 0, PicProfile.Width, PicProfile.Height);
+                PicProfile.Region = new Region(path);
+            }
+
+            btnLogout = new Guna2Button
+            {
+                Text = "Logout",
+                Size = new Size(86, 36),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(239, 83, 80),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Margin = new Padding(6, 8, 8, 0),
+                Cursor = Cursors.Hand
+            };
+            btnLogout.HoverState.FillColor = Color.FromArgb(211, 47, 47);
+            btnLogout.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show("Are you sure you want to log out?", "Logout Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    UserSession.Logout();
+                    this.Close();
+                }
+            };
+
+            btnExitApp = new Guna2Button
+            {
+                Text = "✕",
+                Size = new Size(40, 36),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(55, 71, 79),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Margin = new Padding(4, 8, 8, 0),
+                Cursor = Cursors.Hand
+            };
+            btnExitApp.HoverState.FillColor = Color.FromArgb(198, 40, 40);
+            btnExitApp.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show("Are you sure you want to exit the system?", "Exit Application", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    Application.Exit();
+                }
+            };
+
+            pnlUser.Controls.Add(pnlText);
+            pnlUser.Controls.Add(PicProfile);
+            pnlUser.Controls.Add(btnLogout);
+            pnlUser.Controls.Add(btnExitApp);
+
+            header.Controls.Add(pnlUser);
         }
 
         // ------------------------------------------------------------------

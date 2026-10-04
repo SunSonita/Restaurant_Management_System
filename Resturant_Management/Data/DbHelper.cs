@@ -38,7 +38,7 @@ namespace Resturant_Management.Data
             }
             set
             {
-                _connectionString = value;
+                _connectionString = value; 
             }
         }
 

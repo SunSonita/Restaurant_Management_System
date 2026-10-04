@@ -30,6 +30,9 @@ namespace Resturant_Management.Item_Group
 
         private void UpdateGroup_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             LoadGroupData();
         }
 

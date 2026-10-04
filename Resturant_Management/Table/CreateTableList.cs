@@ -20,6 +20,9 @@ namespace Resturant_Management.Table
 
         private void CreateTableList_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             try
             {
                 DataTable dt = DbHelper.ExecuteQuery("SELECT TableGroupID, GroupName FROM dbo.TABLE_GROUP ORDER BY GroupName");

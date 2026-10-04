@@ -26,6 +26,9 @@ namespace Resturant_Management.Inventory
 
         private void CreateItem_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             this.BringToFront();
             LoadDropdowns();
         }

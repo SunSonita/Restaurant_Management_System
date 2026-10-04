@@ -27,6 +27,9 @@ namespace Resturant_Management.Inventory
 
         private void Itemlist_Load(object sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             BuildLayout();
             ApplyUIStyle();
             SetupColumns();
@@ -68,8 +71,37 @@ namespace Resturant_Management.Inventory
 
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(btnCreate);
-            pnlHeader.Resize += (s, ev) => btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
-            btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
+
+            var btnStockHub = new Guna.UI2.WinForms.Guna2Button
+            {
+                Text = "Stock & Adjustments",
+                Size = new Size(165, 40),
+                FillColor = Color.FromArgb(40, 167, 69),
+                ForeColor = Color.White,
+                BorderRadius = 4,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnStockHub.Click += (s, ev) =>
+            {
+                Control? parentContainer = this.Parent;
+                if (parentContainer != null)
+                {
+                    parentContainer.Controls.Clear();
+                    InventoryManagement invScreen = new InventoryManagement { Dock = DockStyle.Fill };
+                    parentContainer.Controls.Add(invScreen);
+                    invScreen.BringToFront();
+                }
+            };
+            pnlHeader.Controls.Add(btnStockHub);
+
+            void RepositionHeaderButtons()
+            {
+                btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
+                btnStockHub.Location = new Point(pnlHeader.Width - btnCreate.Width - btnStockHub.Width - 25, 9);
+            }
+            pnlHeader.Resize += (s, ev) => RepositionHeaderButtons();
+            RepositionHeaderButtons();
 
             // ---------- Toolbar (Inactive + search) ----------
             pnlToolbar = new Panel { Dock = DockStyle.Top, Height = ToolbarHeight, BackColor = Color.White };

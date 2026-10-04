@@ -30,6 +30,9 @@ namespace Resturant_Management.Inventory
 
         private void UpdateItem_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             this.BringToFront();
             LoadDropdowns();
             if (!string.IsNullOrEmpty(_itemCode))
