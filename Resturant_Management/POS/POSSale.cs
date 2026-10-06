@@ -395,8 +395,34 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
         private void BtnReceipt_Click(object? sender, EventArgs e)
         {
-            using var receipts = new ReceiptListForm();
-            receipts.ShowDialog(FindForm());
+            // Show the receipt list as a child view in the same content area as POS (like Report);
+            // the POS layout is only hidden so the cart is intact when the list is closed.
+            Control posView = Parent is TableLayoutPanel ? Parent : this;
+            Control? host = posView.Parent;
+            if (host == null)
+            {
+                using var dialog = new ReceiptListForm();
+                dialog.ShowDialog(FindForm());
+                return;
+            }
+
+            var receipts = new ReceiptListForm
+            {
+                TopLevel = false,
+                FormBorderStyle = FormBorderStyle.None,
+                Dock = DockStyle.Fill
+            };
+            receipts.FormClosed += (s, ev) =>
+            {
+                host.Controls.Remove(receipts);
+                posView.Visible = true;
+                posView.BringToFront();
+            };
+
+            posView.Visible = false;
+            host.Controls.Add(receipts);
+            receipts.BringToFront();
+            receipts.Show();
         }
 
         private void Print80mmInvoice()

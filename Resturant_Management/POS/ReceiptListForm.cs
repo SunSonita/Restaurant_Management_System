@@ -45,7 +45,7 @@ namespace Resturant_Management.POS
 
         public ReceiptListForm()
         {
-            Text = "Receipt";
+            Text = "Receipt List";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterParent;
             Size = new Size(1180, 760);
@@ -97,13 +97,33 @@ namespace Resturant_Management.POS
             btnClose.Click += (s, e) => Close();
             btnClose.MouseEnter += (s, e) => btnClose.BackColor = Color.FromArgb(200, 70, 70);
             btnClose.MouseLeave += (s, e) => btnClose.BackColor = Color.Transparent;
+            // Back to the POS screen (same as closing)
+            Guna2Button btnBack = new Guna2Button
+            {
+                Text = "◀  Back",
+                Dock = DockStyle.Fill,
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(68, 158, 122),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnBack.Click += (s, e) => Close();
+
+            // Equal-width side areas keep the title centered
+            Panel pnlLeft = new Panel { Dock = DockStyle.Left, Width = 140, Padding = new Padding(12, 9, 18, 9), BackColor = HeaderBar };
+            pnlLeft.Controls.Add(btnBack);
+            Panel pnlRight = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = HeaderBar };
+            pnlRight.Controls.Add(btnClose);
+
             pnlTitle.Controls.Add(lblTitle);
-            pnlTitle.Controls.Add(btnClose);
+            pnlTitle.Controls.Add(pnlLeft);
+            pnlTitle.Controls.Add(pnlRight);
 
             // Drag the borderless window by its title bar
             MouseEventHandler drag = (s, e) =>
             {
-                if (e.Button != MouseButtons.Left) return;
+                if (e.Button != MouseButtons.Left || !TopLevel) return;
                 NativeDrag();
             };
             pnlTitle.MouseDown += drag;
@@ -203,6 +223,7 @@ namespace Resturant_Management.POS
             // Thin outline so the borderless window stands out from the POS behind it
             Paint += (s, e) =>
             {
+                if (!TopLevel) return;
                 using var pen = new Pen(Color.FromArgb(180, 180, 190));
                 e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
             };
