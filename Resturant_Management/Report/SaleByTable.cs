@@ -2,7 +2,6 @@
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
-using Guna.UI2.WinForms;
 using Microsoft.Data.SqlClient;
 using Resturant_Management.Data;
 
@@ -11,102 +10,30 @@ namespace Resturant_Management.Report
     public partial class SaleByTable : UserControl
     {
         private bool _isInitialized = false;
-        private Guna2Button btnExport = null!;
-        private Guna2Button btnPrint = null!;
-        private Guna2Button btnReset = null!;
 
         public SaleByTable()
         {
             InitializeComponent();
             this.Dock = DockStyle.Fill;
-            if (DesignTimeHelper.IsInDesignMode(this))
-                return;
-
             txtSearch.Text = "";
-            txtSearch.PlaceholderText = "Search table, group, order...";
-
-            CreateActionButtons();
-
+            txtSearch.PlaceholderText = "Search...";
             this.Resize += (s, e) => ApplyResponsiveLayout();
             SetupFilters();
             _isInitialized = true;
+            LoadReportData(false);
             this.Load += SaleByTable_Load;
 
             btnFilter.Click += (s, e) => LoadReportData(true);
-            txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; LoadReportData(false); } };
+            txtSearch.TextChanged += (s, e) => LoadReportData(false);
             comboCreator.SelectedIndexChanged += (s, e) => { if (_isInitialized) LoadReportData(false); };
-            cmbTypeReport.SelectedIndexChanged += (s, e) => { if (_isInitialized) { ConfigureGridColumns(); LoadReportData(false); } };
-        }
-
-        private void CreateActionButtons()
-        {
-            btnReset = new Guna2Button
-            {
-                Text = "Reset",
-                Size = new Size(80, 48),
-                BorderRadius = 6,
-                FillColor = Color.FromArgb(140, 150, 165),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnReset.Click += (s, e) => ResetFilters();
-
-            btnExport = new Guna2Button
-            {
-                Text = "Export CSV",
-                Size = new Size(105, 48),
-                BorderRadius = 6,
-                FillColor = Color.FromArgb(40, 167, 69),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnExport.Click += (s, e) => ReportExporter.ExportToCsv(gridDataitem, "SaleByTableReport");
-
-            btnPrint = new Guna2Button
-            {
-                Text = "Print",
-                Size = new Size(85, 48),
-                BorderRadius = 6,
-                FillColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnPrint.Click += (s, e) =>
-            {
-                string subtitle = $"Period: {DateFrom.Value:yyyy-MM-dd} {TimeFrom.Value:HH:mm} to {DateTo.Value:yyyy-MM-dd} {TimeTo.Value:HH:mm} | Group: {comboCreator.SelectedItem} | Type: {cmbTypeReport.SelectedItem}";
-                ReportExporter.PrintReport(gridDataitem, "Sale By Table Report", subtitle);
-            };
-
-            pnlInfoReportSale.Controls.Add(btnReset);
-            pnlInfoReportSale.Controls.Add(btnExport);
-            pnlInfoReportSale.Controls.Add(btnPrint);
+            cmbTypeReport.SelectedIndexChanged += (s, e) => { if (_isInitialized) LoadReportData(false); };
         }
 
         private void SaleByTable_Load(object? sender, EventArgs e)
         {
-            if (DesignTimeHelper.IsInDesignMode(this))
-                return;
-
             ApplyResponsiveLayout();
-            ConfigureGridColumns();
             SetupFilters();
             _isInitialized = true;
-            LoadReportData(false);
-        }
-
-        private void ResetFilters()
-        {
-            DateFrom.Value = DateTime.Today.AddDays(-7);
-            DateTo.Value = DateTime.Today;
-            TimeFrom.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 0, 0, 0);
-            TimeTo.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 59);
-            txtSearch.Text = "";
-            if (comboCreator.Items.Count > 0) comboCreator.SelectedIndex = 0;
-            if (cmbTypeReport.Items.Count > 0) cmbTypeReport.SelectedIndex = 0;
-            ConfigureGridColumns();
             LoadReportData(false);
         }
 
@@ -119,84 +46,28 @@ namespace Resturant_Management.Report
                 TimeFrom.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 0, 0, 0);
                 TimeTo.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 59);
 
-                // Use comboCreator as Dining Area / Table Group Filter
+                // Populate Creator ComboBox
                 comboCreator.Items.Clear();
-                comboCreator.Items.Add("All Dining Areas");
-                DataTable dtGroups = DbHelper.ExecuteQuery("SELECT GroupName FROM dbo.TABLE_GROUP ORDER BY GroupName");
-                foreach (DataRow r in dtGroups.Rows)
+                comboCreator.Items.Add("All Creators");
+                DataTable dtUsers = DbHelper.ExecuteQuery("SELECT DISTINCT FullName FROM dbo.APP_USER ORDER BY FullName");
+                foreach (DataRow r in dtUsers.Rows)
                 {
-                    string? name = r["GroupName"]?.ToString();
+                    string? name = r["FullName"]?.ToString();
                     if (!string.IsNullOrEmpty(name))
                         comboCreator.Items.Add(name);
                 }
-                comboCreator.Items.Add("Take Away / Direct");
                 comboCreator.SelectedIndex = 0;
 
                 // Populate Report Type ComboBox
                 cmbTypeReport.Items.Clear();
                 cmbTypeReport.Items.Add("Group by Table");
                 cmbTypeReport.Items.Add("Detailed Orders by Table");
-                cmbTypeReport.Items.Add("Group by Dining Area");
-                cmbTypeReport.Items.Add("Take Away & Delivery Orders");
+                cmbTypeReport.Items.Add("Group by Table Group");
                 cmbTypeReport.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing filters: {ex.Message}");
-            }
-        }
-
-        private void ConfigureGridColumns()
-        {
-            gridDataitem.Columns.Clear();
-            gridDataitem.AutoGenerateColumns = false;
-            string reportType = cmbTypeReport.SelectedItem?.ToString() ?? "Group by Table";
-
-            if (reportType == "Group by Table")
-            {
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Table / Area", Width = 160 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Dining Group", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Orders", Width = 70 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis (KHR)", Width = 150 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount (KHR)", Width = 130 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Net Sales (KHR)", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid Amount (KHR)", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Net Sales (USD)", Width = 120 });
-            }
-            else if (reportType == "Group by Dining Area")
-            {
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Dining Area / Group", Width = 200 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Orders", Width = 100 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis (KHR)", Width = 170 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount (KHR)", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Net Sales (KHR)", Width = 160 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid (KHR)", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Net (USD)", Width = 120 });
-            }
-            else // Detailed Orders by Table or Takeaway
-            {
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Invoice No", Width = 130 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Order No", Width = 100 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Posting Date", Width = 140 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Table", Width = 120 });
-                gridDataitem.Columns.Add(new HeaderTextColumn("Dining Area", 120));
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Creator", Width = 110 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Total Before Dis", Width = 130 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Discount", Width = 110 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Grand Total", Width = 130 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Paid Amount", Width = 120 });
-                gridDataitem.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Status", Width = 80 });
-            }
-
-            ApplyGridStyle();
-        }
-
-        private class HeaderTextColumn : DataGridViewTextBoxColumn
-        {
-            public HeaderTextColumn(string title, int width)
-            {
-                HeaderText = title;
-                Width = width;
             }
         }
 
@@ -217,8 +88,9 @@ namespace Resturant_Management.Report
                 return;
             }
 
-            string selectedArea = comboCreator.SelectedItem?.ToString() ?? "All Dining Areas";
+            string creator = comboCreator.SelectedItem?.ToString() ?? "All Creators";
             string reportType = cmbTypeReport.SelectedItem?.ToString() ?? "Group by Table";
+            ConfigureGridColumns(reportType);
             string search = txtSearch.Text.Trim();
             if (search.StartsWith("Search", StringComparison.OrdinalIgnoreCase) && search.Contains("."))
             {
@@ -241,7 +113,6 @@ namespace Resturant_Management.Report
                     string sql = @"
 SELECT 
     TableName,
-    GroupTable,
     COUNT(OrderID) AS OrderCount,
     SUM(TotalBeforeDis) AS TotalBeforeDis,
     SUM(DiscountItem) AS DiscountItem,
@@ -249,15 +120,15 @@ SELECT
     SUM(Paid) AS Paid
 FROM dbo.vw_SaleByTable
 WHERE (PostingDate >= @Start AND PostingDate <= @End)
-  AND (@Area = 'All Dining Areas' OR GroupTable = @Area)
+  AND (@Creator = 'All Creators' OR Creator = @Creator)
   AND (@Search = '' OR TableName LIKE @Pattern OR GroupTable LIKE @Pattern)
-GROUP BY TableName, GroupTable
-ORDER BY GroupTable, TableName ASC;";
+GROUP BY TableName
+ORDER BY TableName ASC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
                         new SqlParameter("@End", endDateTime),
-                        new SqlParameter("@Area", selectedArea),
+                        new SqlParameter("@Creator", creator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
 
@@ -276,17 +147,15 @@ ORDER BY GroupTable, TableName ASC;";
 
                         gridDataitem.Rows.Add(
                             r["TableName"]?.ToString(),
-                            r["GroupTable"]?.ToString(),
-                            count,
+                            $"{count} Order{(count == 1 ? "" : "s")}",
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2"),
-                            (aft / 4000m).ToString("N2")
+                            paid.ToString("N2")
                         );
                     }
                 }
-                else if (reportType == "Group by Dining Area")
+                else if (reportType == "Group by Table Group")
                 {
                     string sql = @"
 SELECT 
@@ -298,7 +167,7 @@ SELECT
     SUM(Paid) AS Paid
 FROM dbo.vw_SaleByTable
 WHERE (PostingDate >= @Start AND PostingDate <= @End)
-  AND (@Area = 'All Dining Areas' OR GroupTable = @Area)
+  AND (@Creator = 'All Creators' OR Creator = @Creator)
   AND (@Search = '' OR GroupTable LIKE @Pattern)
 GROUP BY GroupTable
 ORDER BY GroupTable ASC;";
@@ -306,7 +175,7 @@ ORDER BY GroupTable ASC;";
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
                         new SqlParameter("@End", endDateTime),
-                        new SqlParameter("@Area", selectedArea),
+                        new SqlParameter("@Creator", creator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
 
@@ -325,69 +194,11 @@ ORDER BY GroupTable ASC;";
 
                         gridDataitem.Rows.Add(
                             r["GroupTable"]?.ToString(),
-                            count,
+                            $"{count} Order{(count == 1 ? "" : "s")}",
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2"),
-                            (aft / 4000m).ToString("N2")
-                        );
-                    }
-                }
-                else if (reportType == "Take Away & Delivery Orders")
-                {
-                    string sql = @"
-SELECT 
-    InvoiceNo,
-    OrderNo,
-    PostingDate,
-    TableName,
-    GroupTable,
-    Creator,
-    TotalBeforeDis,
-    DiscountItem,
-    TotalAfterDis,
-    Paid,
-    Status
-FROM dbo.vw_SaleByTable
-WHERE (PostingDate >= @Start AND PostingDate <= @End)
-  AND (TableID IS NULL OR TableName LIKE '%Take%' OR TableName LIKE '%Delivery%')
-  AND (@Search = '' OR InvoiceNo LIKE @Pattern OR OrderNo LIKE @Pattern OR TableName LIKE @Pattern OR Creator LIKE @Pattern)
-ORDER BY PostingDate DESC;";
-
-                    dt = DbHelper.ExecuteQuery(sql,
-                        new SqlParameter("@Start", startDateTime),
-                        new SqlParameter("@End", endDateTime),
-                        new SqlParameter("@Search", search),
-                        new SqlParameter("@Pattern", $"%{search}%"));
-
-                    foreach (DataRow r in dt.Rows)
-                    {
-                        decimal bef = r["TotalBeforeDis"] != DBNull.Value ? Convert.ToDecimal(r["TotalBeforeDis"]) : 0m;
-                        decimal dis = r["DiscountItem"] != DBNull.Value ? Convert.ToDecimal(r["DiscountItem"]) : 0m;
-                        decimal aft = r["TotalAfterDis"] != DBNull.Value ? Convert.ToDecimal(r["TotalAfterDis"]) : 0m;
-                        decimal paid = r["Paid"] != DBNull.Value ? Convert.ToDecimal(r["Paid"]) : 0m;
-
-                        sumBeforeDis += bef;
-                        sumDisItem += dis;
-                        sumAfterDis += aft;
-                        sumPaid += paid;
-
-                        string invNo = r["InvoiceNo"]?.ToString() ?? "";
-                        if (string.IsNullOrEmpty(invNo)) invNo = r["OrderNo"]?.ToString() ?? "";
-
-                        gridDataitem.Rows.Add(
-                            invNo,
-                            r["OrderNo"]?.ToString(),
-                            Convert.ToDateTime(r["PostingDate"]).ToString("yyyy-MM-dd HH:mm"),
-                            r["TableName"]?.ToString(),
-                            r["GroupTable"]?.ToString(),
-                            r["Creator"]?.ToString(),
-                            bef.ToString("N2"),
-                            dis.ToString("N2"),
-                            aft.ToString("N2"),
-                            paid.ToString("N2"),
-                            r["Status"]?.ToString()
+                            paid.ToString("N2")
                         );
                     }
                 }
@@ -396,7 +207,6 @@ ORDER BY PostingDate DESC;";
                     string sql = @"
 SELECT 
     OrderID,
-    InvoiceNo,
     OrderNo,
     PostingDate,
     Creator,
@@ -405,18 +215,17 @@ SELECT
     TotalBeforeDis,
     DiscountItem,
     TotalAfterDis,
-    Paid,
-    Status
+    Paid
 FROM dbo.vw_SaleByTable
 WHERE (PostingDate >= @Start AND PostingDate <= @End)
-  AND (@Area = 'All Dining Areas' OR GroupTable = @Area)
-  AND (@Search = '' OR InvoiceNo LIKE @Pattern OR OrderNo LIKE @Pattern OR TableName LIKE @Pattern OR GroupTable LIKE @Pattern OR Creator LIKE @Pattern)
+  AND (@Creator = 'All Creators' OR Creator = @Creator)
+  AND (@Search = '' OR OrderNo LIKE @Pattern OR TableName LIKE @Pattern OR GroupTable LIKE @Pattern)
 ORDER BY PostingDate DESC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
                         new SqlParameter("@End", endDateTime),
-                        new SqlParameter("@Area", selectedArea),
+                        new SqlParameter("@Creator", creator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
 
@@ -432,28 +241,22 @@ ORDER BY PostingDate DESC;";
                         sumAfterDis += aft;
                         sumPaid += paid;
 
-                        string invNo = r["InvoiceNo"]?.ToString() ?? "";
-                        if (string.IsNullOrEmpty(invNo)) invNo = r["OrderNo"]?.ToString() ?? "";
+                        string displayTitle = $"{r["OrderNo"]} ({r["TableName"]})";
 
                         gridDataitem.Rows.Add(
-                            invNo,
-                            r["OrderNo"]?.ToString(),
+                            displayTitle,
                             Convert.ToDateTime(r["PostingDate"]).ToString("yyyy-MM-dd HH:mm"),
-                            r["TableName"]?.ToString(),
-                            r["GroupTable"]?.ToString(),
-                            r["Creator"]?.ToString(),
                             bef.ToString("N2"),
                             dis.ToString("N2"),
                             aft.ToString("N2"),
-                            paid.ToString("N2"),
-                            r["Status"]?.ToString()
+                            paid.ToString("N2")
                         );
                     }
                 }
 
                 if (dt.Rows.Count == 0 && isExplicitFilter)
                 {
-                    MessageBox.Show("No table sales records found matching the selected filter criteria.",
+                    MessageBox.Show("No table sale records found matching the selected filter criteria.",
                                     "Sale by Table", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
@@ -464,35 +267,59 @@ ORDER BY PostingDate DESC;";
 
             gridDataitem.ClearSelection();
 
-            if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR ({(sumBeforeDis / 4000m):N2} USD)";
-            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount : {sumDisItem:N2} KHR ({(sumDisItem / 4000m):N2} USD)";
-            if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Net Sales : {sumAfterDis:N2} KHR ({(sumAfterDis / 4000m):N2} USD)";
-            if (lbGrandTotal != null) lbGrandTotal.Text = $"Paid Amount : {sumPaid:N2} KHR ({(sumPaid / 4000m):N2} USD)";
+            if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR";
+            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount : {sumDisItem:N2} KHR";
+            if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Total After Discount : {sumAfterDis:N2} KHR";
+            if (lbGrandTotal != null) lbGrandTotal.Text = $"Grand Total : {sumAfterDis:N2} KHR";
             AlignSummaryLabels();
         }
 
-        /// <summary>
-        /// Shared look for the report grid: flat navy header matching the title and Filter button,
-        /// light row separators, amounts right-aligned. Runs after the columns for a report type are built.
-        /// </summary>
-        private void ApplyGridStyle()
+        /// <summary>The first two grid columns hold different data per report type; label and size them to match.</summary>
+        private void ConfigureGridColumns(string reportType)
         {
-            var amountHeader = new System.Text.RegularExpressions.Regex("KHR|USD|Total Before|Discount|Paid|Net|Grand", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            (string first, string second, float firstWeight, float secondWeight) = reportType switch
+            {
+                "Group by Table Group" => ("Table Group", "Orders", 130f, 80f),
+                "Group by Table" => ("Table", "Orders", 120f, 80f),
+                _ => ("Order (Table)", "Posting Date", 150f, 130f)
+            };
+            ApplyGridColumnLayout(first, second, firstWeight, secondWeight);
+        }
+        private void ApplyGridColumnLayout(string first, string second, float firstWeight, float secondWeight)
+        {
+            colNo.HeaderText = first;
+            colNo.FillWeight = firstWeight;
+            colPostingDate.HeaderText = second;
+            colPostingDate.FillWeight = secondWeight;
+            colTotalbeforeDis.HeaderText = "Total Before Discount (KHR)";
+            colDisItem.HeaderText = "Discount (KHR)";
+            colTotalAtferDis.HeaderText = "Total After Discount (KHR)";
+            colPaid.HeaderText = "Paid (KHR)";
+
+            foreach (DataGridViewColumn col in new DataGridViewColumn[] { colTotalbeforeDis, colDisItem, colTotalAtferDis, colPaid })
+            {
+                col.FillWeight = 120f;
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                col.DefaultCellStyle.Padding = new Padding(0, 0, 12, 0);
+                col.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
+                col.HeaderCell.Style.Padding = new Padding(0, 0, 12, 0);
+            }
+            foreach (DataGridViewColumn col in new DataGridViewColumn[] { colNo, colPostingDate })
+            {
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                col.DefaultCellStyle.Padding = new Padding(10, 0, 0, 0);
+                col.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                col.HeaderCell.Style.Padding = new Padding(10, 0, 0, 0);
+            }
             foreach (DataGridViewColumn col in gridDataitem.Columns)
             {
                 col.SortMode = DataGridViewColumnSortMode.NotSortable;
-                bool isAmount = amountHeader.IsMatch(col.HeaderText ?? "") && !(col.HeaderText ?? "").Contains("Orders");
-                var align = isAmount ? DataGridViewContentAlignment.MiddleRight : DataGridViewContentAlignment.MiddleLeft;
-                var pad = isAmount ? new Padding(0, 0, 12, 0) : new Padding(10, 0, 0, 0);
-                col.DefaultCellStyle.Alignment = align;
-                col.DefaultCellStyle.Padding = pad;
-                col.HeaderCell.Style.Alignment = align;
-                col.HeaderCell.Style.Padding = pad;
             }
 
             gridDataitem.AllowUserToAddRows = false;
             gridDataitem.ReadOnly = true;
 
+            // Flat navy header matching the report title and Filter button; light row separators
             Color navy = Color.FromArgb(10, 20, 110);
             gridDataitem.EnableHeadersVisualStyles = false;
             gridDataitem.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
@@ -536,41 +363,17 @@ ORDER BY PostingDate DESC;";
                 Math.Max(450, this.ClientSize.Height - marginTop - marginBottom)
             );
 
-            // Right-align search box & action buttons
-            int rightX = pnlInfoReportSale.Width - 25;
-
-            if (btnFilter != null)
-            {
-                btnFilter.Location = new Point(rightX - btnFilter.Width, 31);
-                rightX -= (btnFilter.Width + 8);
-            }
-
-            if (btnReset != null)
-            {
-                btnReset.Location = new Point(rightX - btnReset.Width, 31);
-                rightX -= (btnReset.Width + 8);
-            }
-
-            if (btnPrint != null)
-            {
-                btnPrint.Location = new Point(rightX - btnPrint.Width, 31);
-                rightX -= (btnPrint.Width + 8);
-            }
-
-            if (btnExport != null)
-            {
-                btnExport.Location = new Point(rightX - btnExport.Width, 31);
-            }
-
+            // Right-align search box above the grid
+            int padRight = 25;
             if (txtSearch != null)
             {
-                txtSearch.Location = new Point(pnlInfoReportSale.Width - txtSearch.Width - 25, 168);
+                txtSearch.Location = new Point(pnlInfoReportSale.Width - txtSearch.Width - padRight, 168);
             }
 
-            // Summary Totals: neatly aligned at bottom right
+            // Summary Totals: neatly aligned at the bottom right
             AlignSummaryLabels();
 
-            // DataGridView fills from Y = 218 down to summary section
+            // DataGridView: Fills from Y = 218 down to the summary section
             int gridTop = 218;
             int summaryReserved = 135;
             int gridHeight = Math.Max(150, pnlInfoReportSale.Height - gridTop - summaryReserved);

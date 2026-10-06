@@ -29,31 +29,9 @@ namespace Resturant_Management.POS
         // Shared placeholder bitmap (drawn once, reused by every card)
         private static Bitmap? _noImageCache;
 
-        private bool _isInitialized = false;
-
         public ProductList()
         {
             InitializeComponentByCode();
-            if (DesignTimeHelper.IsInDesignMode(this))
-                return;
-
-            this.Load += (s, e) => InitRuntime();
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            if (!DesignTimeHelper.IsInDesignMode(this) && !_isInitialized)
-            {
-                InitRuntime();
-            }
-        }
-
-        private void InitRuntime()
-        {
-            if (_isInitialized) return;
-            _isInitialized = true;
-
             LoadCategories();
             LoadProducts();
             BindFilterEvents();
