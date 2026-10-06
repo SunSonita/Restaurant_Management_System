@@ -589,7 +589,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             g.DrawLine(penSolid, startX, y, endX, y);
             y += 2;
 
-            decimal subBeforeUsd = 0m, subAfterItemUsd = 0m;
+            decimal subBeforeUsd = 0m;
             int lineNo = 1;
             foreach (DataGridViewRow row in dgvCart.Rows)
             {
@@ -600,7 +600,6 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 decimal aftUsd = ToUsd(ParseDecimal(row.Cells["colAftDis"].Value));
                 decimal discPct = ParseDecimal(row.Cells["colDisc"].Value);
                 subBeforeUsd += befUsd;
-                subAfterItemUsd += aftUsd;
 
                 SizeF nameSize = g.MeasureString(name, fontBody, (int)cDescW, sfWrap);
                 float rowH = Math.Max(18f, nameSize.Height);
@@ -620,8 +619,8 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             y += 4;
 
             // 4. Totals
-            decimal discountUsd = (subBeforeUsd - subAfterItemUsd) + ToUsd(currentDocDiscountKHR);
-            if (discountUsd < 0) discountUsd = 0;
+            var cartTotals = ComputeCartTotals();
+            decimal discountUsd = ToUsd(cartTotals.itemDiscount + cartTotals.docDiscount);
             decimal subAfterUsd = Math.Max(0m, subBeforeUsd - discountUsd);
             decimal grandUsd = subAfterUsd;
             decimal grandKhr = grandUsd * KhrPerUsd;
@@ -859,18 +858,9 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             y += 6;
 
             // 5. Totals
-            decimal subTotalKHR = GetCartSubTotal();
+            var (subTotalKHR, itemDiscountKHR, docDiscountKHR, grandTotalKHR) = ComputeCartTotals();
             decimal subTotalUSD = subTotalKHR >= 100m ? (subTotalKHR / KhrPerUsd) : subTotalKHR;
-            decimal docDiscountKHR = currentDocDiscountKHR;
-            decimal itemDiscountKHR = 0;
-            foreach (DataGridViewRow row in dgvCart.Rows)
-            {
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                if (bef > aft) itemDiscountKHR += (bef - aft);
-            }
             decimal totalDiscountKHR = itemDiscountKHR + docDiscountKHR;
-            decimal grandTotalKHR = Math.Max(0m, subTotalKHR - totalDiscountKHR);
             decimal grandTotalUSD = grandTotalKHR >= 100m ? (grandTotalKHR / KhrPerUsd) : grandTotalKHR;
 
             void DrawSummaryRow(string label, string val, Font f)
@@ -1040,17 +1030,7 @@ ORDER BY o.OrderID DESC;";
         {
             if (dgvCart.Rows.Count == 0) return 0;
 
-            decimal subTotalKHR = GetCartSubTotal();
-            decimal docDiscountKHR = currentDocDiscountKHR;
-            decimal itemDiscountKHR = 0;
-            foreach (DataGridViewRow row in dgvCart.Rows)
-            {
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                if (bef > aft) itemDiscountKHR += (bef - aft);
-            }
-            decimal grandTotalKHR = subTotalKHR - itemDiscountKHR - docDiscountKHR;
-            if (grandTotalKHR < 0) grandTotalKHR = 0;
+            var (subTotalKHR, itemDiscountKHR, docDiscountKHR, grandTotalKHR) = ComputeCartTotals();
 
             decimal docDiscountPct = (subTotalKHR > 0) ? (docDiscountKHR / subTotalKHR * 100m) : 0m;
 
@@ -1259,16 +1239,7 @@ VALUES
                     Dock = DockStyle.Fill
                 };
 
-                decimal subTotal = GetCartSubTotal();
-                decimal totalGridDiscount = 0;
-                foreach (DataGridViewRow row in dgvCart.Rows)
-                {
-                    decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                    decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                    if (bef > aft) totalGridDiscount += (bef - aft);
-                }
-                decimal grandTotal = subTotal - totalGridDiscount;
-                if (grandTotal < 0) grandTotal = 0;
+                decimal grandTotal = ComputeCartTotals().grandTotal;
 
                 decimal totalUSD = grandTotal >= 100m ? (grandTotal / KhrPerUsd) : grandTotal;
                 decimal totalKHR = grandTotal < 100m ? (grandTotal * KhrPerUsd) : grandTotal;
@@ -2020,40 +1991,38 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
             return subTotal;
         }
 
+        /// <summary>
+        /// Single source of truth for cart totals (KHR). The document discount is already spread into the rows'
+        /// After-Discount values, so it is taken out of the row discount to avoid subtracting it twice.
+        /// </summary>
+        private (decimal subTotal, decimal itemDiscount, decimal docDiscount, decimal grandTotal) ComputeCartTotals()
+        {
+            decimal subTotal = 0m;
+            decimal totalGridDiscount = 0m;
+            foreach (DataGridViewRow row in dgvCart.Rows)
+            {
+                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
+                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
+                subTotal += bef;
+                if (bef > aft) totalGridDiscount += (bef - aft);
+            }
+
+            decimal docDiscount = currentDocDiscountKHR;
+            decimal itemDiscount = docDiscount > 0 ? Math.Max(0m, totalGridDiscount - docDiscount) : totalGridDiscount;
+            decimal grandTotal = Math.Max(0m, subTotal - itemDiscount - docDiscount);
+            return (subTotal, itemDiscount, docDiscount, grandTotal);
+        }
+
         private void RecalculateTotals()
         {
             int totalRows = dgvCart.Rows.Count;
             decimal totalQty = 0;
-            decimal subTotal = 0;
-            decimal totalGridDiscount = 0;
-
             foreach (DataGridViewRow row in dgvCart.Rows)
             {
-                decimal q = ParseDecimal(row.Cells["colQty"].Value);
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-
-                totalQty += q;
-                subTotal += bef;
-
-                if (bef > aft)
-                    totalGridDiscount += (bef - aft);
+                totalQty += ParseDecimal(row.Cells["colQty"].Value);
             }
 
-            decimal docDiscount = currentDocDiscountKHR;
-            decimal itemDiscount = 0m;
-
-            if (docDiscount > 0)
-            {
-                itemDiscount = Math.Max(0m, totalGridDiscount - docDiscount);
-            }
-            else
-            {
-                itemDiscount = totalGridDiscount;
-            }
-
-            decimal grandTotal = subTotal - itemDiscount - docDiscount;
-            if (grandTotal < 0) grandTotal = 0;
+            var (subTotal, itemDiscount, docDiscount, grandTotal) = ComputeCartTotals();
 
             lblCountRows.Text = $"Count Rows :{totalRows}";
             lblCountQtys.Text = $"Count Qtys :{totalQty:N0}";

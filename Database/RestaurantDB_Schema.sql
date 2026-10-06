@@ -544,6 +544,72 @@ LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
 WHERE o.Status IN ('Sent', 'Billed', 'Paid');
 GO
 
+-- One row per order (amounts in KHR) for the Sale Summary report
+CREATE OR ALTER VIEW dbo.vw_SaleSummary
+AS
+SELECT
+    o.OrderID,
+    o.PostingDate,
+    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
+    o.OrderNo,
+    ISNULL(u.FullName, 'System') AS Creator,
+    o.SubTotal AS TotalBeforeDiscount,
+    o.SubTotal AS TotalBeforeDis,
+    o.ItemDiscountTotal + o.DocDiscountAmount AS DiscountItem,
+    o.DocDiscountAmount AS DiscountOrder,
+    o.GrandTotal AS TotalAfterDiscount,
+    o.GrandTotal AS TotalAfterDis,
+    0 AS Tax,
+    0 AS ServiceCharge,
+    o.GrandTotal,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS PaidAmount,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS Paid,
+    ISNULL(p.ChangeGiven * p.ExchangeRate, 0) AS Change,
+    ISNULL(p.ChangeGiven * p.ExchangeRate, 0) AS ChangeAmount,
+    ISNULL(pm.MethodName, 'Cash') AS PaymentMethod,
+    o.Status AS PaymentStatus,
+    t.TableName,
+    c.CustomerName
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
+LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
+LEFT JOIN dbo.CUSTOMER c ON o.CustomerID = c.CustomerID
+OUTER APPLY (
+    SELECT TOP 1 PaymentID, ChangeGiven, ExchangeRate
+    FROM dbo.PAYMENT WHERE OrderID = o.OrderID
+    ORDER BY PaymentID DESC
+) p
+OUTER APPLY (
+    SELECT TOP 1 m.MethodName
+    FROM dbo.PAYMENT_DETAIL pd
+    JOIN dbo.PAYMENT_METHOD m ON pd.MethodID = m.MethodID
+    WHERE pd.PaymentID = p.PaymentID
+) pm
+WHERE o.Status IN ('Sent', 'Billed', 'Paid');
+GO
+
+-- Repair orders saved before the POS fix, which subtracted the document discount twice
+-- (it is already inside the line discounts). Safe to re-run.
+UPDATE o
+SET o.ItemDiscountTotal = x.NewItem,
+    o.GrandTotal = CASE WHEN o.SubTotal - x.NewItem - o.DocDiscountAmount > 0
+                        THEN o.SubTotal - x.NewItem - o.DocDiscountAmount ELSE 0 END
+FROM dbo.SALE_ORDER o
+CROSS APPLY (
+    SELECT CASE WHEN SUM(CASE WHEN i.TotalBeforeDis > i.TotalAfterDis THEN i.TotalBeforeDis - i.TotalAfterDis ELSE 0 END) > o.DocDiscountAmount
+                THEN SUM(CASE WHEN i.TotalBeforeDis > i.TotalAfterDis THEN i.TotalBeforeDis - i.TotalAfterDis ELSE 0 END) - o.DocDiscountAmount
+                ELSE 0 END AS NewItem,
+           COUNT(*) AS LineCount
+    FROM dbo.SALE_ORDER_ITEM i
+    WHERE i.OrderID = o.OrderID
+) x
+WHERE o.DocDiscountAmount > 0
+  AND x.LineCount > 0
+  AND (o.ItemDiscountTotal <> x.NewItem
+       OR o.GrandTotal <> CASE WHEN o.SubTotal - x.NewItem - o.DocDiscountAmount > 0
+                               THEN o.SubTotal - x.NewItem - o.DocDiscountAmount ELSE 0 END);
+GO
+
 IF OBJECT_ID('dbo.vw_DailyPaymentSummary', 'V') IS NOT NULL
     DROP VIEW dbo.vw_DailyPaymentSummary;
 GO
