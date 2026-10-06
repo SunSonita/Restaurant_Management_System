@@ -439,7 +439,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 }
                 DateTime timeOut = DateTime.Now;
 
-                var printDoc = BuildInvoicePrintDocument(timeIn, timeOut, out int pageCount);
+                var printDoc = BuildInvoicePrintDocument(timeIn, timeOut);
 
                 using var preview = new PrintPreviewDialog
                 {
@@ -447,7 +447,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                     Width = 520,
                     Height = 740,
                     StartPosition = FormStartPosition.CenterParent,
-                    Text = $"Invoice - {_currentOrderNo}"
+                    Text = $"Print Preview (80mm) - Invoice {_currentOrderNo}"
                 };
 
                 var ppc = preview.Controls.OfType<PrintPreviewControl>().FirstOrDefault();
@@ -455,7 +455,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 {
                     ppc.AutoZoom = false;
                     ppc.Zoom = 1.25;
-                    ppc.Rows = Math.Min(pageCount, 2);
+                    ppc.Rows = 1;
                     ppc.Columns = 1;
                 }
 
@@ -468,74 +468,38 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             }
         }
 
-        /// <summary>Builds the invoice as fixed 80mm x 80mm pages (315 x 315 hundredths of an inch); long invoices continue on the next page.</summary>
-        internal System.Drawing.Printing.PrintDocument BuildInvoicePrintDocument(DateTime timeIn, DateTime timeOut, out int pageCount)
+        /// <summary>Builds the invoice as one continuous 80mm-wide page whose length fits the content (same as the receipt).</summary>
+        internal System.Drawing.Printing.PrintDocument BuildInvoicePrintDocument(DateTime timeIn, DateTime timeOut)
         {
-            const int pageSize = 315;
-            const float pageTopPad = 8f;
-            const float pageBottomPad = 6f;
-
-            // Split content at safe row boundaries so no text is cut between pages
-            List<(float start, float end)> Paginate(Graphics mg)
-            {
-                var breaks = new List<float>();
-                float totalHeight = Render80mmInvoice(mg, timeIn, timeOut, breaks);
-                var result = new List<(float start, float end)>();
-                float pos = 0f;
-                while (pos < totalHeight - 0.5f)
-                {
-                    float limit = pos + pageSize - pageBottomPad - (result.Count > 0 ? pageTopPad : 0f);
-                    float end = breaks.Where(b => b > pos + 0.5f && b <= limit).DefaultIfEmpty(Math.Min(limit, totalHeight)).Max();
-                    result.Add((pos, end));
-                    pos = end;
-                }
-                return result;
-            }
-
-            // Estimate for the preview layout; the exact split is measured on the printer's own graphics when printing starts
-            List<(float start, float end)> pages;
-            using (Bitmap bmp = new Bitmap(1, 1))
-            using (Graphics bg = Graphics.FromImage(bmp))
-            {
-                pages = Paginate(bg);
-            }
-            pageCount = pages.Count;
-
+            // Measure on the printer's own graphics so the page length matches what is printed
+            float contentHeight;
             var printDoc = new System.Drawing.Printing.PrintDocument();
-            printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
-            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80 x 80mm", pageSize, pageSize);
-            printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+            try
+            {
+                using Graphics mg = printDoc.PrinterSettings.CreateMeasurementGraphics();
+                contentHeight = Render80mmInvoice(mg, timeIn, timeOut);
+            }
+            catch
+            {
+                using Bitmap bmp = new Bitmap(1, 1);
+                using Graphics bg = Graphics.FromImage(bmp);
+                contentHeight = Render80mmInvoice(bg, timeIn, timeOut);
+            }
+            int pageHeight = Math.Max(315, (int)Math.Ceiling(contentHeight) + 20);
 
-            int pageIndex = 0;
-            bool measured = false;
-            printDoc.BeginPrint += (ps, pe) => { pageIndex = 0; measured = false; };
+            printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
+            // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
+            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, pageHeight);
+            printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
             printDoc.PrintPage += (ps, pe) =>
             {
-                if (pe.Graphics == null) return;
-                if (!measured)
-                {
-                    try
-                    {
-                        using Graphics mg = pe.PageSettings.PrinterSettings.CreateMeasurementGraphics(pe.PageSettings);
-                        pages = Paginate(mg);
-                    }
-                    catch { /* keep the bitmap estimate */ }
-                    measured = true;
-                }
-                var (start, end) = pages[pageIndex];
-                float offset = pageIndex > 0 ? pageTopPad : 0f;
-                pe.Graphics.TranslateTransform(0, offset - start);
-                pe.Graphics.SetClip(new RectangleF(0, start, pageSize, end - start));
-                Render80mmInvoice(pe.Graphics, timeIn, timeOut);
-                pageIndex++;
-                pe.HasMorePages = pageIndex < pages.Count;
+                if (pe.Graphics != null) Render80mmInvoice(pe.Graphics, timeIn, timeOut);
             };
-
             return printDoc;
         }
 
         /// <summary>Draws the 80mm guest invoice (USD with KHR grand total). Returns the final Y used, for page-height sizing.</summary>
-        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut, List<float>? breaks = null)
+        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
@@ -606,7 +570,6 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             float cTotX = cDisX + cDisW;
 
             g.DrawString("№", fontHead, brush, new RectangleF(cNoX, y, cNoW, 18), sfLeft);
-            breaks?.Add(y);
             g.DrawString("Description", fontHead, brush, new RectangleF(cDescX, y, cDescW, 18), sfLeft);
             g.DrawString("Qty", fontHead, brush, new RectangleF(cQtyX, y, cQtyW, 18), sfCenter);
             g.DrawString("Price", fontHead, brush, new RectangleF(cPriceX, y, cPriceW, 18), sfRight);
@@ -640,7 +603,6 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 g.DrawString($"{discPct:0.##}%", fontBody, brush, new RectangleF(cDisX, y, cDisW, rowH), sfRight);
                 g.DrawString(aftUsd.ToString("N2"), fontBody, brush, new RectangleF(cTotX, y, cTotW, rowH), sfRight);
                 y += rowH;
-                breaks?.Add(y);
                 lineNo++;
             }
 
@@ -662,7 +624,6 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 g.DrawString(label, f, brush, new RectangleF(startX, y, sumLblW, 19), sfRight);
                 g.DrawString(value, f, brush, new RectangleF(startX + sumLblW, y, width - sumLblW, 19), sfRight);
                 y += 19;
-                breaks?.Add(y);
             }
 
             DrawTotal("Sub Total Before Discount :", $"USD {subBeforeUsd:N2}", fontSum);
@@ -676,7 +637,6 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
             g.DrawString($"KHR {grandKhr:N0}", fontSum, brush, new RectangleF(startX, y, width, 19), sfRight);
             y += 20;
-            breaks?.Add(y);
 
             return y;
         }
