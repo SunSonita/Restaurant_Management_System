@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using Resturant_Management.Data;
@@ -14,13 +15,21 @@ namespace Resturant_Management.Table
         private readonly HashSet<int> _selectedTableIds = new();
         private bool _isInitialized = false;
 
-        // Dynamic Responsive Controls
+        // Dynamic responsive controls
         private readonly Guna.UI2.WinForms.Guna2Button btnMoveGroup = new Guna.UI2.WinForms.Guna2Button();
-        private readonly Panel pnlSearch = new Panel();
-        private readonly Label lblSearch = new Label();
         private Panel pnlTitle = null!;
         private Panel pnlToolbar = null!;
         private Panel pnlGrid = null!;
+
+        // DPI-aware metrics for the "actions" column (measured from real text, never hard-coded)
+        private Font _actionFont = null!;
+        private Font _headerFont = null!;
+        private int _pad, _gap, _chk, _thumb;
+        private int _wChoose, _wEdit, _wDelete;
+
+        private static readonly Color Blue = Color.FromArgb(26, 117, 210);
+        private static readonly Color LineColor = Color.FromArgb(232, 236, 241);
+        private static readonly Color TextColor = Color.FromArgb(30, 41, 59);
 
         public TableList()
         {
@@ -58,13 +67,35 @@ namespace Resturant_Management.Table
             InitRuntime();
         }
 
+        // Scale a 96-DPI pixel value to the current monitor DPI
+        private int S(int v) => (int)Math.Round(v * DeviceDpi / 96.0);
+
+        private void InitMetrics()
+        {
+            _actionFont = new Font("Segoe UI", 9F, FontStyle.Bold);
+            _headerFont = new Font("Segoe UI", 10F, FontStyle.Bold);
+            _pad = S(16);
+            _gap = S(24);
+            _chk = S(18);
+            _thumb = S(36);
+            _wChoose = TextRenderer.MeasureText("Choose File", _actionFont).Width + S(26);
+            _wEdit = TextRenderer.MeasureText("Edit", _actionFont).Width + S(26);
+            _wDelete = TextRenderer.MeasureText("Delete", _actionFont).Width + S(26);
+        }
+
+        private int ActionsColumnWidth =>
+            _pad + _wChoose + _gap + _wEdit + _gap + _wDelete + _gap + _chk + _pad;
+
         private void InitRuntime()
         {
             if (_isInitialized) return;
             _isInitialized = true;
 
+            InitMetrics();
             BuildResponsiveLayout();
             SetupComboBox();
+            FitCombo();
+            RepositionToolbar();
             SetupDataGridView();
             LoadTableData();
 
@@ -76,125 +107,100 @@ namespace Resturant_Management.Table
             txtSearch.TextChanged += (s, e) => LoadTableData();
         }
 
+        // Size a button to its real text so nothing is ever truncated (any DPI / font scaling)
+        private void FitButton(Guna.UI2.WinForms.Guna2Button b)
+        {
+            int w = TextRenderer.MeasureText(b.Text, b.Font).Width + S(44);
+            b.Size = new Size(Math.Max(w, S(90)), S(38));
+        }
+
+        private void FitCombo()
+        {
+            int max = 0;
+            foreach (var item in comboGroupTable.Items)
+                max = Math.Max(max, TextRenderer.MeasureText(item?.ToString() ?? "", comboGroupTable.Font).Width);
+
+            comboGroupTable.Size = new Size(Math.Max(max + S(64), S(190)), S(38));
+            comboGroupTable.DropDownWidth = comboGroupTable.Width + S(20);
+        }
+
+        private void StyleButton(Guna.UI2.WinForms.Guna2Button b, string text)
+        {
+            b.Text = text;
+            b.BorderRadius = 4;
+            b.FillColor = Blue;
+            b.HoverState.FillColor = Color.FromArgb(21, 101, 192);
+            b.ForeColor = Color.White;
+            b.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            b.TextAlign = HorizontalAlignment.Center;
+            b.TextOffset = new Point(0, 0);
+            b.Cursor = Cursors.Hand;
+            b.ShadowDecoration.Enabled = false;
+            FitButton(b);
+        }
+
         private void BuildResponsiveLayout()
         {
             this.SuspendLayout();
             this.BackColor = Color.White;
             this.Dock = DockStyle.Fill;
 
-            // 1. Top Title Bar (Dock = Top, Height = 58) - Flat, NO shadow
+            // 1. Title bar
             pnlTitle = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 58,
-                BackColor = Color.White,
-                Padding = new Padding(20, 10, 20, 10)
+                Height = S(58),
+                BackColor = Color.White
             };
 
             label1.Text = "Table list";
             label1.Font = new Font("Segoe UI", 17F, FontStyle.Bold);
-            label1.ForeColor = Color.FromArgb(26, 117, 210);
+            label1.ForeColor = Blue;
             label1.AutoSize = true;
-            label1.Location = new Point(18, 12);
 
-            btnCreate.Text = "Create";
-            btnCreate.Size = new Size(120, 38);
-            btnCreate.BorderRadius = 4;
-            btnCreate.FillColor = Color.FromArgb(26, 117, 210);
-            btnCreate.ForeColor = Color.White;
-            btnCreate.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            btnCreate.TextAlign = HorizontalAlignment.Center;
-            btnCreate.TextOffset = new Point(0, 0);
-            btnCreate.Cursor = Cursors.Hand;
-            btnCreate.ShadowDecoration.Enabled = false;
+            StyleButton(btnCreate, "Create");
 
             pnlTitle.Controls.Add(label1);
             pnlTitle.Controls.Add(btnCreate);
 
             void PositionTitle()
             {
-                btnCreate.Location = new Point(pnlTitle.Width - btnCreate.Width - 20, 10);
+                label1.Location = new Point(S(18), (pnlTitle.Height - label1.Height) / 2);
+                btnCreate.Location = new Point(pnlTitle.Width - btnCreate.Width - S(20), (pnlTitle.Height - btnCreate.Height) / 2);
             }
             pnlTitle.Resize += (s, ev) => PositionTitle();
             PositionTitle();
 
-            // 2. Action / Filter Toolbar (Dock = Top) - Fully Responsive
+            // 2. Toolbar (positions itself in RepositionToolbar)
             pnlToolbar = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 105,
+                Height = S(110),
                 BackColor = Color.White
             };
 
-            // Configure generous dimensions to prevent any text truncation across all DPIs
-            btnCreateTableList.Text = "Create Table List";
-            btnCreateTableList.Size = new Size(160, 38);
-            btnCreateTableList.BorderRadius = 4;
-            btnCreateTableList.FillColor = Color.FromArgb(26, 117, 210);
-            btnCreateTableList.ForeColor = Color.White;
-            btnCreateTableList.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            btnCreateTableList.Cursor = Cursors.Hand;
-            btnCreateTableList.ShadowDecoration.Enabled = false;
+            StyleButton(btnCreateTableList, "Create Table List");
+            StyleButton(btnSetImageAll, "Set Image for selected items");
+            StyleButton(btnMoveGroup, "Move Group Table By Selected");
+            StyleButton(btnDeletebySelect, "Delete By Selected");
 
-            btnSetImageAll.Text = "Set Image for selected items";
-            btnSetImageAll.Size = new Size(235, 38);
-            btnSetImageAll.BorderRadius = 4;
-            btnSetImageAll.FillColor = Color.FromArgb(26, 117, 210);
-            btnSetImageAll.ForeColor = Color.White;
-            btnSetImageAll.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            btnSetImageAll.Cursor = Cursors.Hand;
-            btnSetImageAll.ShadowDecoration.Enabled = false;
-
-            // Generous width for combo so "All Group Table" NEVER truncates to "All Gr... Table"
-            comboGroupTable.Size = new Size(210, 38);
-            comboGroupTable.DropDownWidth = 230;
             comboGroupTable.BorderRadius = 4;
             comboGroupTable.BorderColor = Color.FromArgb(209, 213, 219);
             comboGroupTable.FillColor = Color.White;
-            comboGroupTable.ForeColor = Color.FromArgb(30, 41, 59);
+            comboGroupTable.ForeColor = TextColor;
             comboGroupTable.Font = new Font("Segoe UI", 9.5F);
-            comboGroupTable.ItemHeight = 30;
+            comboGroupTable.ItemHeight = S(28);
             comboGroupTable.ShadowDecoration.Enabled = false;
 
-            btnMoveGroup.Text = "Move Group Table By Selected";
-            btnMoveGroup.Size = new Size(245, 38);
-            btnMoveGroup.BorderRadius = 4;
-            btnMoveGroup.FillColor = Color.FromArgb(26, 117, 210);
-            btnMoveGroup.ForeColor = Color.White;
-            btnMoveGroup.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            btnMoveGroup.Cursor = Cursors.Hand;
-            btnMoveGroup.ShadowDecoration.Enabled = false;
-
-            btnDeletebySelect.Text = "Deleted By Selected";
-            btnDeletebySelect.Size = new Size(170, 38);
-            btnDeletebySelect.BorderRadius = 4;
-            btnDeletebySelect.FillColor = Color.FromArgb(26, 117, 210);
-            btnDeletebySelect.HoverState.FillColor = Color.FromArgb(21, 101, 192);
-            btnDeletebySelect.ForeColor = Color.White;
-            btnDeletebySelect.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
-            btnDeletebySelect.Cursor = Cursors.Hand;
-            btnDeletebySelect.ShadowDecoration.Enabled = false;
-
-            // Search Container
-            pnlSearch.Size = new Size(270, 52);
-            pnlSearch.BackColor = Color.Transparent;
-
-            lblSearch.Text = "Search";
-            lblSearch.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular);
-            lblSearch.ForeColor = Color.FromArgb(100, 116, 139);
-            lblSearch.AutoSize = true;
-            lblSearch.Location = new Point(2, 0);
-
-            txtSearch.Size = new Size(270, 32);
-            txtSearch.Location = new Point(0, 17);
+            txtSearch.Height = S(38);
             txtSearch.BorderRadius = 4;
             txtSearch.BorderColor = Color.FromArgb(209, 213, 219);
-            txtSearch.PlaceholderText = "";
+            txtSearch.PlaceholderText = "Search table name or code...";
+            txtSearch.PlaceholderForeColor = Color.FromArgb(148, 163, 184);
             txtSearch.Font = new Font("Segoe UI", 9.5F);
-            txtSearch.ForeColor = Color.FromArgb(30, 41, 59);
+            txtSearch.ForeColor = TextColor;
             txtSearch.ShadowDecoration.Enabled = false;
 
-            // Search Icon
             Bitmap searchIcon = new Bitmap(16, 16);
             using (Graphics g = Graphics.FromImage(searchIcon))
             {
@@ -206,66 +212,24 @@ namespace Resturant_Management.Table
                 }
             }
             txtSearch.IconLeft = searchIcon;
-            txtSearch.IconLeftSize = new Size(14, 14);
-            txtSearch.IconLeftOffset = new Point(6, 0);
-
-            pnlSearch.Controls.Clear();
-            pnlSearch.Controls.Add(lblSearch);
-            pnlSearch.Controls.Add(txtSearch);
+            txtSearch.IconLeftSize = new Size(S(14), S(14));
+            txtSearch.IconLeftOffset = new Point(S(6), 0);
 
             pnlToolbar.Controls.Add(btnCreateTableList);
             pnlToolbar.Controls.Add(btnSetImageAll);
             pnlToolbar.Controls.Add(comboGroupTable);
             pnlToolbar.Controls.Add(btnMoveGroup);
             pnlToolbar.Controls.Add(btnDeletebySelect);
-            pnlToolbar.Controls.Add(pnlSearch);
+            pnlToolbar.Controls.Add(txtSearch);
 
-            void RepositionToolbar()
-            {
-                int leftGroupWidth = btnCreateTableList.Width + btnSetImageAll.Width + comboGroupTable.Width + 24;
-                int rightGroupWidth = btnMoveGroup.Width + btnDeletebySelect.Width + 10;
-                int totalNeeded = leftGroupWidth + rightGroupWidth + 40;
-                int margin = 20;
-
-                if (pnlToolbar.Width >= totalNeeded)
-                {
-                    // Wide Desktop: single row for buttons, search box under right group
-                    pnlToolbar.Height = 105;
-
-                    btnCreateTableList.Location = new Point(margin, 10);
-                    btnSetImageAll.Location = new Point(btnCreateTableList.Right + 10, 10);
-                    comboGroupTable.Location = new Point(btnSetImageAll.Right + 10, 10);
-
-                    btnDeletebySelect.Location = new Point(pnlToolbar.Width - btnDeletebySelect.Width - margin, 10);
-                    btnMoveGroup.Location = new Point(btnDeletebySelect.Left - btnMoveGroup.Width - 10, 10);
-
-                    pnlSearch.Location = new Point(pnlToolbar.Width - pnlSearch.Width - margin, 52);
-                }
-                else
-                {
-                    // Responsive / Compact View: Row 1 = Left controls, Row 2 = Right controls & search
-                    pnlToolbar.Height = 112;
-
-                    btnCreateTableList.Location = new Point(margin, 10);
-                    btnSetImageAll.Location = new Point(btnCreateTableList.Right + 8, 10);
-                    comboGroupTable.Location = new Point(btnSetImageAll.Right + 8, 10);
-
-                    btnMoveGroup.Location = new Point(margin, 56);
-                    btnDeletebySelect.Location = new Point(btnMoveGroup.Right + 8, 56);
-
-                    int searchX = Math.Max(btnDeletebySelect.Right + 12, pnlToolbar.Width - pnlSearch.Width - margin);
-                    pnlSearch.Location = new Point(searchX, 42);
-                }
-            }
             pnlToolbar.Resize += (s, ev) => RepositionToolbar();
-            RepositionToolbar();
 
-            // 3. DataGridView Container (Dock = Fill) - Expands to full remaining window
+            // 3. Grid container
             pnlGrid = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.White,
-                Padding = new Padding(20, 4, 20, 20)
+                Padding = new Padding(S(20), S(4), S(20), S(20))
             };
 
             dgvDataTableList.Dock = DockStyle.Fill;
@@ -277,6 +241,71 @@ namespace Resturant_Management.Table
             this.Controls.Add(pnlTitle);
 
             this.ResumeLayout(true);
+        }
+
+        // Wide: [left group ........ right group] + search on the 2nd row (right aligned)
+        // Narrow: every control wraps onto as many rows as needed - nothing is clipped
+        private void RepositionToolbar()
+        {
+            if (pnlToolbar == null || pnlToolbar.ClientSize.Width <= 0) return;
+
+            int margin = S(20), gap = S(10), rowH = S(38), rowGap = S(10), top = S(10);
+            int width = pnlToolbar.ClientSize.Width;
+
+            btnCreateTableList.Height = btnSetImageAll.Height = btnMoveGroup.Height =
+                btnDeletebySelect.Height = comboGroupTable.Height = txtSearch.Height = rowH;
+
+            txtSearch.Width = Math.Min(S(280), Math.Max(S(160), width - margin * 2));
+
+            Control[] left = { btnCreateTableList, btnSetImageAll, comboGroupTable };
+            Control[] right = { btnMoveGroup, btnDeletebySelect };
+
+            int leftW = 0, rightW = 0;
+            foreach (var c in left) leftW += c.Width + gap;
+            foreach (var c in right) rightW += c.Width + gap;
+            int needed = margin * 2 + leftW + rightW;
+
+            int bottom;
+            if (width >= needed)
+            {
+                int x = margin;
+                foreach (var c in left)
+                {
+                    c.Location = new Point(x, top);
+                    x += c.Width + gap;
+                }
+
+                x = width - margin;
+                for (int i = right.Length - 1; i >= 0; i--)
+                {
+                    x -= right[i].Width;
+                    right[i].Location = new Point(x, top);
+                    x -= gap;
+                }
+
+                txtSearch.Location = new Point(width - margin - txtSearch.Width, top + rowH + rowGap);
+                bottom = top + rowH + rowGap + rowH;
+            }
+            else
+            {
+                Control[] all = { btnCreateTableList, btnSetImageAll, comboGroupTable, btnMoveGroup, btnDeletebySelect, txtSearch };
+                int x = margin, y = top;
+                foreach (var c in all)
+                {
+                    if (x > margin && x + c.Width > width - margin)
+                    {
+                        x = margin;
+                        y += rowH + rowGap;
+                    }
+                    c.Location = new Point(x, y);
+                    x += c.Width + gap;
+                }
+                bottom = y + rowH;
+            }
+
+            int newHeight = bottom + rowGap;
+            if (pnlToolbar.Height != newHeight)
+                pnlToolbar.Height = newHeight;
         }
 
         private void dgvDataTableList_CellContentClick(object? sender, DataGridViewCellEventArgs e)
@@ -314,41 +343,48 @@ namespace Resturant_Management.Table
 
         private void SetupDataGridView()
         {
+            // Double buffering removes the flicker / leftover lines while resizing
+            typeof(DataGridView).InvokeMember("DoubleBuffered",
+                BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.SetProperty,
+                null, dgvDataTableList, new object[] { true });
+
             dgvDataTableList.EnableHeadersVisualStyles = false;
             dgvDataTableList.BackgroundColor = Color.White;
             dgvDataTableList.BorderStyle = BorderStyle.None;
             dgvDataTableList.ReadOnly = true;
 
-            // REMOVE BACK BORDERS & VERTICAL BORDERS - ONLY SINGLE BOTTOM BORDER
-            dgvDataTableList.CellBorderStyle = DataGridViewCellBorderStyle.None;
-            dgvDataTableList.GridColor = Color.FromArgb(241, 245, 249);
-            dgvDataTableList.AdvancedCellBorderStyle.All = DataGridViewAdvancedCellBorderStyle.None;
-            dgvDataTableList.AdvancedColumnHeadersBorderStyle.All = DataGridViewAdvancedCellBorderStyle.None;
+            // ---- Borders: Guna's theme must be set too, otherwise it re-applies its own lines ----
+            dgvDataTableList.ThemeStyle.BackColor = Color.White;
+            dgvDataTableList.ThemeStyle.GridColor = LineColor;
             dgvDataTableList.ThemeStyle.RowsStyle.BorderStyle = DataGridViewCellBorderStyle.None;
             dgvDataTableList.ThemeStyle.HeaderStyle.BorderStyle = DataGridViewHeaderBorderStyle.None;
-
-            // Header Style: Flat, solid white, NO shadow, comfortable 48px height
-            dgvDataTableList.ColumnHeadersDefaultCellStyle.BackColor = Color.White;
-            dgvDataTableList.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(30, 41, 59);
-            dgvDataTableList.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            dgvDataTableList.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.White;
-            dgvDataTableList.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 41, 59);
-            dgvDataTableList.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            dgvDataTableList.ColumnHeadersHeight = 48;
+            dgvDataTableList.GridColor = LineColor;
+            dgvDataTableList.CellBorderStyle = DataGridViewCellBorderStyle.None;
             dgvDataTableList.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dgvDataTableList.RowTemplate.DividerHeight = 0;
 
-            dgvDataTableList.RowTemplate.Height = 58;
+            // Header: flat white
+            dgvDataTableList.ColumnHeadersDefaultCellStyle.BackColor = Color.White;
+            dgvDataTableList.ColumnHeadersDefaultCellStyle.ForeColor = TextColor;
+            dgvDataTableList.ColumnHeadersDefaultCellStyle.Font = _headerFont;
+            dgvDataTableList.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.White;
+            dgvDataTableList.ColumnHeadersDefaultCellStyle.SelectionForeColor = TextColor;
+            dgvDataTableList.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvDataTableList.ColumnHeadersHeight = S(48);
+
+            dgvDataTableList.RowTemplate.Height = S(58);
             dgvDataTableList.AllowUserToAddRows = false;
             dgvDataTableList.AllowUserToDeleteRows = false;
             dgvDataTableList.AllowUserToResizeRows = false;
+            dgvDataTableList.AllowUserToResizeColumns = false;
             dgvDataTableList.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvDataTableList.MultiSelect = false;
             dgvDataTableList.RowHeadersVisible = false;
 
             dgvDataTableList.DefaultCellStyle.BackColor = Color.White;
-            dgvDataTableList.DefaultCellStyle.ForeColor = Color.FromArgb(30, 41, 59);
+            dgvDataTableList.DefaultCellStyle.ForeColor = TextColor;
             dgvDataTableList.DefaultCellStyle.SelectionBackColor = Color.FromArgb(240, 247, 255);
-            dgvDataTableList.DefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 41, 59);
+            dgvDataTableList.DefaultCellStyle.SelectionForeColor = TextColor;
             dgvDataTableList.DefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
 
             if (dgvDataTableList.Columns.Contains("colImage") && !(dgvDataTableList.Columns["colImage"] is DataGridViewImageColumn))
@@ -360,7 +396,7 @@ namespace Resturant_Management.Table
                     Name = "colImage",
                     HeaderText = "Image Name",
                     ImageLayout = DataGridViewImageCellLayout.Zoom,
-                    Width = 140
+                    Width = S(140)
                 };
                 dgvDataTableList.Columns.Insert(imgIdx, imgCol);
             }
@@ -369,65 +405,133 @@ namespace Resturant_Management.Table
 
             if (dgvDataTableList.Columns.Contains("colTableName"))
             {
-                dgvDataTableList.Columns["colTableName"].HeaderText = "Table Name";
-                dgvDataTableList.Columns["colTableName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-                dgvDataTableList.Columns["colTableName"].FillWeight = 26;
-                dgvDataTableList.Columns["colTableName"].MinimumWidth = 140;
-                dgvDataTableList.Columns["colTableName"].DefaultCellStyle.Padding = new Padding(16, 0, 0, 0);
+                var c = dgvDataTableList.Columns["colTableName"];
+                c.HeaderText = "Table Name";
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                c.FillWeight = 26;
+                c.MinimumWidth = S(140);
+                c.DefaultCellStyle.Padding = new Padding(S(16), 0, 0, 0);
+                c.HeaderCell.Style.Padding = new Padding(S(16), 0, 0, 0);
             }
 
             if (dgvDataTableList.Columns.Contains("colGroupTableName"))
             {
-                dgvDataTableList.Columns["colGroupTableName"].HeaderText = "Group Table Name";
-                dgvDataTableList.Columns["colGroupTableName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-                dgvDataTableList.Columns["colGroupTableName"].FillWeight = 26;
-                dgvDataTableList.Columns["colGroupTableName"].MinimumWidth = 150;
+                var c = dgvDataTableList.Columns["colGroupTableName"];
+                c.HeaderText = "Group Table Name";
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                c.FillWeight = 26;
+                c.MinimumWidth = S(150);
+                c.DefaultCellStyle.Padding = new Padding(S(16), 0, 0, 0);
+                c.HeaderCell.Style.Padding = new Padding(S(16), 0, 0, 0);
             }
 
             if (dgvDataTableList.Columns.Contains("colImage"))
             {
-                dgvDataTableList.Columns["colImage"].HeaderText = "Image Name";
-                dgvDataTableList.Columns["colImage"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                dgvDataTableList.Columns["colImage"].Width = 140;
-                dgvDataTableList.Columns["colImage"].MinimumWidth = 130;
-                dgvDataTableList.Columns["colImage"].Resizable = DataGridViewTriState.False;
-                dgvDataTableList.Columns["colImage"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                var c = dgvDataTableList.Columns["colImage"];
+                c.HeaderText = "Image Name";
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                c.Width = S(140);
+                c.MinimumWidth = S(120);
+                c.Resizable = DataGridViewTriState.False;
+                c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                c.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                c.SortMode = DataGridViewColumnSortMode.NotSortable;
             }
 
             if (dgvDataTableList.Columns.Contains("colActions"))
             {
-                dgvDataTableList.Columns["colActions"].HeaderText = "Select All";
-                dgvDataTableList.Columns["colActions"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                dgvDataTableList.Columns["colActions"].Width = 380;
-                dgvDataTableList.Columns["colActions"].MinimumWidth = 360;
-                dgvDataTableList.Columns["colActions"].Resizable = DataGridViewTriState.False;
-                dgvDataTableList.Columns["colActions"].SortMode = DataGridViewColumnSortMode.NotSortable;
+                var c = dgvDataTableList.Columns["colActions"];
+                c.HeaderText = "Select All";
+                c.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                c.Width = ActionsColumnWidth;       // computed from real text widths
+                c.MinimumWidth = ActionsColumnWidth;
+                c.Resizable = DataGridViewTriState.False;
+                c.SortMode = DataGridViewColumnSortMode.NotSortable;
             }
 
-            if (dgvDataTableList.Columns.Contains("colImage"))
-            {
-                dgvDataTableList.Columns["colImage"].SortMode = DataGridViewColumnSortMode.NotSortable;
-            }
+            ApplyFlatBorders();
 
+            // Single set of handlers (the old MouseUp / ColumnHeaderMouseClick duplicates toggled checkboxes 2-3 times)
             dgvDataTableList.CellPainting -= dgvDataTableList_CellPainting;
             dgvDataTableList.CellPainting += dgvDataTableList_CellPainting;
+
+            dgvDataTableList.RowPostPaint -= dgvDataTableList_RowPostPaint;
+            dgvDataTableList.RowPostPaint += dgvDataTableList_RowPostPaint;
 
             dgvDataTableList.CellMouseClick -= dgvDataTableList_CellMouseClick;
             dgvDataTableList.CellMouseClick += dgvDataTableList_CellMouseClick;
 
-            dgvDataTableList.ColumnHeaderMouseClick -= dgvDataTableList_ColumnHeaderMouseClick;
-            dgvDataTableList.ColumnHeaderMouseClick += dgvDataTableList_ColumnHeaderMouseClick;
-
-            dgvDataTableList.MouseUp -= DgvDataTableList_MouseUp;
-            dgvDataTableList.MouseUp += DgvDataTableList_MouseUp;
-
             dgvDataTableList.MouseMove -= DgvDataTableList_MouseMove;
             dgvDataTableList.MouseMove += DgvDataTableList_MouseMove;
+
+            dgvDataTableList.Resize -= DgvDataTableList_Resize;
+            dgvDataTableList.Resize += DgvDataTableList_Resize;
+        }
+
+        // Removes every border the grid itself would draw (outer frame, vertical and horizontal cell lines).
+        // The only line left is the one we paint under each row in CellPainting.
+        private void ApplyFlatBorders()
+        {
+            dgvDataTableList.BorderStyle = BorderStyle.None;
+            dgvDataTableList.CellBorderStyle = DataGridViewCellBorderStyle.None;
+            dgvDataTableList.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dgvDataTableList.RowHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dgvDataTableList.GridColor = Color.White;
+            dgvDataTableList.ThemeStyle.GridColor = Color.White;
+            dgvDataTableList.ThemeStyle.RowsStyle.BorderStyle = DataGridViewCellBorderStyle.None;
+            dgvDataTableList.ThemeStyle.HeaderStyle.BorderStyle = DataGridViewHeaderBorderStyle.None;
+            try
+            {
+                dgvDataTableList.AdvancedCellBorderStyle.All = DataGridViewAdvancedCellBorderStyle.None;
+                dgvDataTableList.AdvancedColumnHeadersBorderStyle.All = DataGridViewAdvancedCellBorderStyle.None;
+            }
+            catch { }
+        }
+
+        // Runs after the grid has painted a row. Whatever border the grid/Guna theme drew on top of our
+        // cells (left edge, column dividers, dark horizontal lines) is painted over with the row colour,
+        // then the single light bottom line is drawn.
+        private void dgvDataTableList_RowPostPaint(object? sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            bool selected = (e.State & DataGridViewElementStates.Selected) != 0;
+            Color bg = selected ? Color.FromArgb(240, 247, 255) : Color.White;
+            Graphics g = e.Graphics;
+
+            using (SolidBrush bgBrush = new SolidBrush(bg))
+            {
+                foreach (DataGridViewColumn col in dgvDataTableList.Columns)
+                {
+                    if (!col.Visible) continue;
+                    Rectangle r = dgvDataTableList.GetCellDisplayRectangle(col.Index, e.RowIndex, false);
+                    if (r.Width <= 0 || r.Height <= 0) continue;
+
+                    g.FillRectangle(bgBrush, r.Left - 1, r.Top, 3, r.Height - 1);   // left edge / divider
+                    g.FillRectangle(bgBrush, r.Right - 2, r.Top, 3, r.Height - 1);  // right edge / divider
+                    g.FillRectangle(bgBrush, r.Left, r.Top, r.Width, 1);            // top line
+                }
+            }
+
+            using (Pen line = new Pen(LineColor, 1f))
+            {
+                g.DrawLine(line, e.RowBounds.Left, e.RowBounds.Bottom - 1, e.RowBounds.Right, e.RowBounds.Bottom - 1);
+            }
+        }
+
+        private void DgvDataTableList_Resize(object? sender, EventArgs e)
+        {
+            dgvDataTableList.Invalidate();
         }
 
         private void LoadTableData()
         {
+            // Release old thumbnails
+            if (dgvDataTableList.Columns.Contains("colImage"))
+            {
+                foreach (DataGridViewRow row in dgvDataTableList.Rows)
+                    if (row.Cells["colImage"].Value is Image old) old.Dispose();
+            }
             dgvDataTableList.Rows.Clear();
+
             string selectedGroup = comboGroupTable?.SelectedItem?.ToString() ?? "All Group Table";
             string search = txtSearch?.Text?.Trim() ?? "";
 
@@ -455,8 +559,7 @@ ORDER BY t.TableID;";
                 foreach (DataRow r in dt.Rows)
                 {
                     string? imgPath = r["ImagePath"]?.ToString();
-                    // Smaller 30px thumbnail with generous padding inside column
-                    Image tableImg = CreateRoundedThumbnail(imgPath, 30);
+                    Image tableImg = CreateRoundedThumbnail(imgPath, _thumb);
 
                     int rowIndex = dgvDataTableList.Rows.Add(
                         r["TableName"]?.ToString(),
@@ -471,6 +574,9 @@ ORDER BY t.TableID;";
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading tables: {ex.Message}");
             }
+
+            // Guna can re-apply its theme borders after data changes, so reset them every load
+            ApplyFlatBorders();
         }
 
         private Image CreateRoundedThumbnail(string? filePath, int size)
@@ -512,8 +618,10 @@ ORDER BY t.TableID;";
                             g.FillPath(bgBrush, path);
                         }
 
-                        // Picture placeholder card
-                        Rectangle iconRect = new Rectangle(5, 5, size - 10, size - 10);
+                        // Picture placeholder (scaled with the thumbnail)
+                        int m = Math.Max(4, size / 6);
+                        Rectangle iconRect = new Rectangle(m, m, size - m * 2, size - m * 2);
+                        float k = iconRect.Width / 20f;
                         using (GraphicsPath iconPath = GetRoundedPath(iconRect, 2))
                         {
                             using (SolidBrush skyBrush = new SolidBrush(Color.FromArgb(224, 242, 254)))
@@ -522,31 +630,27 @@ ORDER BY t.TableID;";
                             }
 
                             g.SetClip(iconPath);
-                            // Sun
                             using (SolidBrush sunBrush = new SolidBrush(Color.FromArgb(250, 204, 21)))
                             {
-                                g.FillEllipse(sunBrush, iconRect.Right - 7, iconRect.Y + 2, 4, 4);
+                                g.FillEllipse(sunBrush, iconRect.Right - 7 * k, iconRect.Y + 2 * k, 4 * k, 4 * k);
                             }
-                            // Hills
                             using (SolidBrush mtn1 = new SolidBrush(Color.FromArgb(74, 222, 128)))
                             {
-                                Point[] pts1 = new Point[]
+                                g.FillPolygon(mtn1, new PointF[]
                                 {
-                                    new Point(iconRect.Left - 2, iconRect.Bottom),
-                                    new Point(iconRect.Left + 5, iconRect.Y + 6),
-                                    new Point(iconRect.Left + 11, iconRect.Bottom)
-                                };
-                                g.FillPolygon(mtn1, pts1);
+                                    new PointF(iconRect.Left - 2 * k, iconRect.Bottom),
+                                    new PointF(iconRect.Left + 5 * k, iconRect.Y + 6 * k),
+                                    new PointF(iconRect.Left + 11 * k, iconRect.Bottom)
+                                });
                             }
                             using (SolidBrush mtn2 = new SolidBrush(Color.FromArgb(34, 197, 94)))
                             {
-                                Point[] pts2 = new Point[]
+                                g.FillPolygon(mtn2, new PointF[]
                                 {
-                                    new Point(iconRect.Left + 4, iconRect.Bottom),
-                                    new Point(iconRect.Left + 10, iconRect.Y + 4),
-                                    new Point(iconRect.Right + 2, iconRect.Bottom)
-                                };
-                                g.FillPolygon(mtn2, pts2);
+                                    new PointF(iconRect.Left + 4 * k, iconRect.Bottom),
+                                    new PointF(iconRect.Left + 10 * k, iconRect.Y + 4 * k),
+                                    new PointF(iconRect.Right + 2 * k, iconRect.Bottom)
+                                });
                             }
                             g.ResetClip();
 
@@ -566,183 +670,147 @@ ORDER BY t.TableID;";
             return bmp;
         }
 
+        // ------------------------------------------------------------------
+        // Actions column geometry - the ONE place used by painting, click and hover
+        // ------------------------------------------------------------------
+        private (Rectangle choose, Rectangle edit, Rectangle delete, Rectangle check) GetActionRects(Rectangle cell)
+        {
+            int btnH = S(30);
+            int cy = cell.Y + (cell.Height - btnH) / 2;
+            int x = cell.X + _pad;
+
+            var choose = new Rectangle(x, cy, _wChoose, btnH);
+            x = choose.Right + _gap;
+            var edit = new Rectangle(x, cy, _wEdit, btnH);
+            x = edit.Right + _gap;
+            var del = new Rectangle(x, cy, _wDelete, btnH);
+            x = del.Right + _gap;
+            var chk = new Rectangle(x, cell.Y + (cell.Height - _chk) / 2, _chk, _chk);
+
+            return (choose, edit, del, chk);
+        }
+
+        private bool IsAllSelected()
+        {
+            if (dgvDataTableList.Rows.Count == 0) return false;
+            foreach (DataGridViewRow row in dgvDataTableList.Rows)
+            {
+                if (row.Tag != null && !_selectedTableIds.Contains(Convert.ToInt32(row.Tag)))
+                    return false;
+            }
+            return true;
+        }
+
+        private void DrawCheckBox(Graphics g, Rectangle box, bool isChecked)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (GraphicsPath p = GetRoundedPath(box, 2))
+            using (SolidBrush bg = new SolidBrush(isChecked ? Blue : Color.White))
+            using (Pen border = new Pen(isChecked ? Blue : Color.FromArgb(148, 163, 184), 1.5f))
+            {
+                g.FillPath(bg, p);
+                g.DrawPath(border, p);
+                if (isChecked)
+                {
+                    float k = box.Width / 18f;
+                    using (Pen tick = new Pen(Color.White, 2f))
+                    {
+                        g.DrawLines(tick, new PointF[]
+                        {
+                            new PointF(box.X + 3 * k, box.Y + 9 * k),
+                            new PointF(box.X + 7 * k, box.Y + 13 * k),
+                            new PointF(box.X + 14 * k, box.Y + 4 * k)
+                        });
+                    }
+                }
+            }
+        }
+
         private void dgvDataTableList_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.Graphics == null) return;
 
+            // If Guna's theme put any grid border back, strip it again before drawing
+            if (dgvDataTableList.CellBorderStyle != DataGridViewCellBorderStyle.None ||
+                dgvDataTableList.BorderStyle != BorderStyle.None)
+            {
+                ApplyFlatBorders();
+            }
+
             int actionColIdx = dgvDataTableList.Columns.Contains("colActions") ? dgvDataTableList.Columns["colActions"].Index : 3;
             int imageColIdx = dgvDataTableList.Columns.Contains("colImage") ? dgvDataTableList.Columns["colImage"].Index : 2;
 
-            // 1. Paint Header Cells - Flat white, NO vertical borders, ONLY single bottom line
-            if (e.RowIndex == -1)
+            // Background + a single bottom line. We handle the whole cell, so the grid draws NO borders of its own.
+            bool isHeader = e.RowIndex == -1;
+            bool isSelected = !isHeader && (e.State & DataGridViewElementStates.Selected) != 0;
+
+            using (SolidBrush bg = new SolidBrush(isSelected ? Color.FromArgb(240, 247, 255) : Color.White))
+                e.Graphics.FillRectangle(bg, e.CellBounds);
+
+            using (Pen line = new Pen(LineColor, 1f))
+                e.Graphics.DrawLine(line, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
+
+            // ---- Header ----
+            if (isHeader)
             {
-                using (SolidBrush bgBrush = new SolidBrush(Color.White))
-                {
-                    e.Graphics.FillRectangle(bgBrush, e.CellBounds);
-                }
-
-                // Single bottom line under header
-                using (Pen gridPen = new Pen(Color.FromArgb(235, 238, 242), 1f))
-                {
-                    e.Graphics.DrawLine(gridPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
-                }
-
                 if (e.ColumnIndex == actionColIdx)
                 {
-                    bool isAllSelected = dgvDataTableList.Rows.Count > 0;
-                    foreach (DataGridViewRow row in dgvDataTableList.Rows)
-                    {
-                        if (row.Tag != null)
-                        {
-                            int tid = Convert.ToInt32(row.Tag);
-                            if (!_selectedTableIds.Contains(tid))
-                            {
-                                isAllSelected = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    int startX = e.CellBounds.X + 16;
-                    using (Font font = new Font("Segoe UI", 10F, FontStyle.Bold))
-                    using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(30, 41, 59)))
-                    {
-                        e.Graphics.DrawString("Select All", font, textBrush, startX + 4, e.CellBounds.Y + (e.CellBounds.Height - 20) / 2);
-                    }
-
-                    // Checkbox in Header at X = startX + 296 (lines up with row checkbox)
-                    int chkY = e.CellBounds.Y + (e.CellBounds.Height - 18) / 2;
-                    Rectangle chkBox = new Rectangle(startX + 296, chkY, 18, 18);
-                    using (GraphicsPath chkPath = GetRoundedPath(chkBox, 2))
-                    using (SolidBrush chkBg = new SolidBrush(isAllSelected ? Color.FromArgb(26, 117, 210) : Color.White))
-                    using (Pen chkBorder = new Pen(isAllSelected ? Color.FromArgb(26, 117, 210) : Color.FromArgb(148, 163, 184), 1.5f))
-                    {
-                        e.Graphics.FillPath(chkBg, chkPath);
-                        e.Graphics.DrawPath(chkBorder, chkPath);
-                        if (isAllSelected)
-                        {
-                            using (Pen checkPen = new Pen(Color.White, 2f))
-                            {
-                                e.Graphics.DrawLines(checkPen, new Point[]
-                                {
-                                    new Point(chkBox.X + 3, chkBox.Y + 9),
-                                    new Point(chkBox.X + 7, chkBox.Y + 13),
-                                    new Point(chkBox.X + 14, chkBox.Y + 4)
-                                });
-                            }
-                        }
-                    }
-
-                    e.Handled = true;
-                    return;
+                    var rects = GetActionRects(e.CellBounds);
+                    TextRenderer.DrawText(e.Graphics, "Select All", _headerFont,
+                        new Rectangle(e.CellBounds.X + _pad, e.CellBounds.Y, rects.check.X - e.CellBounds.X - _pad, e.CellBounds.Height),
+                        TextColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+                    DrawCheckBox(e.Graphics, rects.check, IsAllSelected());
                 }
                 else
                 {
-                    // Paint regular column header text cleanly without any vertical borders
-                    e.Paint(e.CellBounds, DataGridViewPaintParts.ContentForeground);
-                    e.Handled = true;
-                    return;
+                    e.Paint(e.ClipBounds, DataGridViewPaintParts.ContentForeground);
                 }
-            }
-
-            // 2. Paint Data Row Cells - ONLY single bottom border, NO vertical borders, NO back borders
-            if (e.RowIndex >= 0)
-            {
-                bool isSelected = (e.State & DataGridViewElementStates.Selected) != 0;
-                Color bgColor = isSelected ? Color.FromArgb(240, 247, 255) : Color.White;
-                using (SolidBrush bgBrush = new SolidBrush(bgColor))
-                {
-                    e.Graphics.FillRectangle(bgBrush, e.CellBounds);
-                }
-
-                // ONLY ONE SINGLE BOTTOM BORDER FOR ROWS
-                using (Pen gridPen = new Pen(Color.FromArgb(241, 245, 249), 1f))
-                {
-                    e.Graphics.DrawLine(gridPen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
-                }
-
-                // Action Column
-                if (e.ColumnIndex == actionColIdx)
-                {
-                    int cy = e.CellBounds.Y + (e.CellBounds.Height - 30) / 2;
-                    int startX = e.CellBounds.X + 16;
-                    Color btnBlue = Color.FromArgb(26, 117, 210);
-
-                    // 1. Choose File button with generous padding: 108x30
-                    Rectangle btnChoose = new Rectangle(startX, cy, 108, 30);
-                    DrawRoundedActionButton(e.Graphics, btnChoose, "Choose File", btnBlue, 4);
-
-                    // Separator 1 (✦)
-                    DrawSeparatorDiamond(e.Graphics, startX + 108 + 12, cy + 15);
-
-                    // 2. Edit button (52x30)
-                    Rectangle btnEdit = new Rectangle(startX + 132, cy, 52, 30);
-                    DrawRoundedActionButton(e.Graphics, btnEdit, "Edit", btnBlue, 4);
-
-                    // Separator 2 (✦)
-                    DrawSeparatorDiamond(e.Graphics, startX + 132 + 52 + 12, cy + 15);
-
-                    // 3. Delete button (66x30)
-                    Rectangle btnDelete = new Rectangle(startX + 208, cy, 66, 30);
-                    DrawRoundedActionButton(e.Graphics, btnDelete, "Delete", btnBlue, 4);
-
-                    // Separator 3 (✦)
-                    DrawSeparatorDiamond(e.Graphics, startX + 208 + 66 + 12, cy + 15);
-
-                    // 4. Checkbox (18x18) at startX + 296
-                    int chkY = e.CellBounds.Y + (e.CellBounds.Height - 18) / 2;
-                    Rectangle chkBox = new Rectangle(startX + 296, chkY, 18, 18);
-                    int tid = dgvDataTableList.Rows[e.RowIndex].Tag != null ? Convert.ToInt32(dgvDataTableList.Rows[e.RowIndex].Tag) : 0;
-                    bool isChecked = _selectedTableIds.Contains(tid);
-
-                    using (GraphicsPath chkPath = GetRoundedPath(chkBox, 2))
-                    using (SolidBrush chkBg = new SolidBrush(isChecked ? btnBlue : Color.White))
-                    using (Pen chkBorder = new Pen(isChecked ? btnBlue : Color.FromArgb(148, 163, 184), 1.5f))
-                    {
-                        e.Graphics.FillPath(chkBg, chkPath);
-                        e.Graphics.DrawPath(chkBorder, chkPath);
-                        if (isChecked)
-                        {
-                            using (Pen checkPen = new Pen(Color.White, 2f))
-                            {
-                                e.Graphics.DrawLines(checkPen, new Point[]
-                                {
-                                    new Point(chkBox.X + 3, chkBox.Y + 9),
-                                    new Point(chkBox.X + 7, chkBox.Y + 13),
-                                    new Point(chkBox.X + 14, chkBox.Y + 4)
-                                });
-                            }
-                        }
-                    }
-
-                    e.Handled = true;
-                    return;
-                }
-
-                // Image Column: Centered smaller thumbnail with padding inside the column
-                if (e.ColumnIndex == imageColIdx)
-                {
-                    if (e.Value is Image img)
-                    {
-                        int imgSize = 30;
-                        int imgX = e.CellBounds.X + (e.CellBounds.Width - imgSize) / 2;
-                        int imgY = e.CellBounds.Y + (e.CellBounds.Height - imgSize) / 2;
-                        e.Graphics.DrawImage(img, new Rectangle(imgX, imgY, imgSize, imgSize));
-                    }
-                    e.Handled = true;
-                    return;
-                }
-
-                // Other Columns (Table Name, Group Table Name)
-                e.Paint(e.CellBounds, DataGridViewPaintParts.ContentForeground);
                 e.Handled = true;
+                return;
             }
+
+            // ---- Data rows ----
+            if (e.ColumnIndex == actionColIdx)
+            {
+                var r = GetActionRects(e.CellBounds);
+
+                DrawRoundedActionButton(e.Graphics, r.choose, "Choose File", Blue, 4);
+                DrawSeparatorDiamond(e.Graphics, r.choose.Right + _gap / 2, r.choose.Y + r.choose.Height / 2);
+
+                DrawRoundedActionButton(e.Graphics, r.edit, "Edit", Blue, 4);
+                DrawSeparatorDiamond(e.Graphics, r.edit.Right + _gap / 2, r.edit.Y + r.edit.Height / 2);
+
+                DrawRoundedActionButton(e.Graphics, r.delete, "Delete", Blue, 4);
+                DrawSeparatorDiamond(e.Graphics, r.delete.Right + _gap / 2, r.delete.Y + r.delete.Height / 2);
+
+                int tid = dgvDataTableList.Rows[e.RowIndex].Tag != null ? Convert.ToInt32(dgvDataTableList.Rows[e.RowIndex].Tag) : 0;
+                DrawCheckBox(e.Graphics, r.check, _selectedTableIds.Contains(tid));
+
+                e.Handled = true;
+                return;
+            }
+
+            if (e.ColumnIndex == imageColIdx)
+            {
+                if (e.Value is Image img)
+                {
+                    int imgX = e.CellBounds.X + (e.CellBounds.Width - _thumb) / 2;
+                    int imgY = e.CellBounds.Y + (e.CellBounds.Height - _thumb) / 2;
+                    e.Graphics.DrawImage(img, new Rectangle(imgX, imgY, _thumb, _thumb));
+                }
+                e.Handled = true;
+                return;
+            }
+
+            // Text columns
+            e.Paint(e.ClipBounds, DataGridViewPaintParts.ContentForeground);
+            e.Handled = true;
         }
 
         private void DrawSeparatorDiamond(Graphics g, int cx, int cy)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (SolidBrush brush = new SolidBrush(Color.FromArgb(30, 41, 59)))
+            using (SolidBrush brush = new SolidBrush(TextColor))
             {
                 Point[] pts = new Point[]
                 {
@@ -760,11 +828,10 @@ ORDER BY t.TableID;";
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using (GraphicsPath path = GetRoundedPath(bounds, radius))
             using (SolidBrush brush = new SolidBrush(bgColor))
-            using (Font font = new Font("Segoe UI", 9F, FontStyle.Bold))
             {
                 g.FillPath(brush, path);
-                TextRenderer.DrawText(g, text, font, bounds, Color.White,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, text, _actionFont, bounds, Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
         }
 
@@ -788,104 +855,70 @@ ORDER BY t.TableID;";
         private void dgvDataTableList_CellMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             int actionColIdx = dgvDataTableList.Columns.Contains("colActions") ? dgvDataTableList.Columns["colActions"].Index : 3;
+            if (e.ColumnIndex != actionColIdx) return;
 
-            // Clicking in Header row (Select All / Header Checkbox)
-            if (e.RowIndex == -1 && e.ColumnIndex == actionColIdx)
+            // Header (Select All)
+            if (e.RowIndex == -1)
             {
                 ToggleSelectAll();
                 return;
             }
+            if (e.RowIndex < 0) return;
 
-            // Clicking in Data row
-            if (e.RowIndex >= 0 && e.ColumnIndex == actionColIdx)
+            var row = dgvDataTableList.Rows[e.RowIndex];
+            int tableId = row.Tag != null ? Convert.ToInt32(row.Tag) : 0;
+
+            // e.Location is relative to the cell, so build the rects on a cell at (0,0)
+            var cell = new Rectangle(0, 0, dgvDataTableList.Columns[e.ColumnIndex].Width, row.Height);
+            var r = GetActionRects(cell);
+            Point p = e.Location;
+
+            Rectangle chkHit = r.check;
+            chkHit.Inflate(S(8), S(12));
+
+            if (r.choose.Contains(p))
             {
-                int startX = 16;
-                int clickX = e.X;
-                int tableId = dgvDataTableList.Rows[e.RowIndex].Tag != null ? Convert.ToInt32(dgvDataTableList.Rows[e.RowIndex].Tag) : 0;
-
-                // 1. Choose File [startX..startX+108] => [16..124]
-                if (clickX >= startX - 2 && clickX <= startX + 112)
+                using (OpenFileDialog ofd = new OpenFileDialog())
                 {
-                    using (OpenFileDialog ofd = new OpenFileDialog())
+                    ofd.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.webp;*.bmp";
+                    if (ofd.ShowDialog() == DialogResult.OK)
                     {
-                        ofd.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.webp;*.bmp";
-                        if (ofd.ShowDialog() == DialogResult.OK)
+                        row.Cells["colImage"].Value = CreateRoundedThumbnail(ofd.FileName, _thumb);
+                        if (tableId > 0)
                         {
-                            dgvDataTableList.Rows[e.RowIndex].Cells["colImage"].Value = CreateRoundedThumbnail(ofd.FileName, 30);
-                            if (tableId > 0)
-                            {
-                                DbHelper.ExecuteNonQuery("UPDATE dbo.DINING_TABLE SET ImagePath = @Img WHERE TableID = @ID",
-                                    new SqlParameter("@Img", ofd.FileName),
-                                    new SqlParameter("@ID", tableId));
-                            }
+                            DbHelper.ExecuteNonQuery("UPDATE dbo.DINING_TABLE SET ImagePath = @Img WHERE TableID = @ID",
+                                new SqlParameter("@Img", ofd.FileName),
+                                new SqlParameter("@ID", tableId));
                         }
                     }
-                }
-                // 2. Edit [startX+132..startX+132+52] => [148..200]
-                else if (clickX >= startX + 128 && clickX <= startX + 188)
-                {
-                    if (tableId > 0)
-                    {
-                        OpenEditTable(tableId);
-                    }
-                }
-                // 3. Delete [startX+208..startX+208+66] => [224..290]
-                else if (clickX >= startX + 204 && clickX <= startX + 276)
-                {
-                    if (MessageBox.Show("Are you sure you want to delete this table?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                    {
-                        try
-                        {
-                            DbHelper.ExecuteNonQuery("DELETE FROM dbo.DINING_TABLE WHERE TableID = @ID", new SqlParameter("@ID", tableId));
-                            _selectedTableIds.Remove(tableId);
-                            LoadTableData();
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Could not delete table (it may have active orders): {ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        }
-                    }
-                }
-                // 4. Checkbox [startX+296..startX+296+18] => [312..330]
-                else if (clickX >= startX + 290 && clickX <= startX + 345)
-                {
-                    if (_selectedTableIds.Contains(tableId)) _selectedTableIds.Remove(tableId);
-                    else _selectedTableIds.Add(tableId);
-
-                    dgvDataTableList.Refresh();
                 }
             }
-        }
-
-        private void DgvDataTableList_MouseUp(object? sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) return;
-
-            var hit = dgvDataTableList.HitTest(e.X, e.Y);
-            int actionColIdx = dgvDataTableList.Columns.Contains("colActions") ? dgvDataTableList.Columns["colActions"].Index : 3;
-
-            // Header of Action Column (Select All / Header Checkbox)
-            if (hit.Type == DataGridViewHitTestType.ColumnHeader && hit.ColumnIndex == actionColIdx)
+            else if (r.edit.Contains(p))
             {
-                ToggleSelectAll();
-                return;
+                if (tableId > 0) OpenEditTable(tableId);
             }
-
-            // Data Row Checkbox via MouseUp
-            if (hit.Type == DataGridViewHitTestType.Cell && hit.ColumnIndex == actionColIdx && hit.RowIndex >= 0)
+            else if (r.delete.Contains(p))
             {
-                Rectangle cellRect = dgvDataTableList.GetCellDisplayRectangle(hit.ColumnIndex, hit.RowIndex, false);
-                int clickX = e.X - cellRect.X;
-                if (clickX >= 290 && clickX <= 350)
+                if (MessageBox.Show("Are you sure you want to delete this table?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
-                    int tableId = dgvDataTableList.Rows[hit.RowIndex].Tag != null ? Convert.ToInt32(dgvDataTableList.Rows[hit.RowIndex].Tag) : 0;
-                    if (tableId > 0)
+                    try
                     {
-                        if (_selectedTableIds.Contains(tableId)) _selectedTableIds.Remove(tableId);
-                        else _selectedTableIds.Add(tableId);
-
-                        dgvDataTableList.Refresh();
+                        DbHelper.ExecuteNonQuery("DELETE FROM dbo.DINING_TABLE WHERE TableID = @ID", new SqlParameter("@ID", tableId));
+                        _selectedTableIds.Remove(tableId);
+                        LoadTableData();
                     }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Could not delete table (it may have active orders): {ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+            else if (chkHit.Contains(p))
+            {
+                if (tableId > 0)
+                {
+                    if (!_selectedTableIds.Remove(tableId)) _selectedTableIds.Add(tableId);
+                    dgvDataTableList.Invalidate();
                 }
             }
         }
@@ -902,18 +935,13 @@ ORDER BY t.TableID;";
             else if (hit.Type == DataGridViewHitTestType.Cell && hit.ColumnIndex == actionColIdx && hit.RowIndex >= 0)
             {
                 Rectangle cellRect = dgvDataTableList.GetCellDisplayRectangle(hit.ColumnIndex, hit.RowIndex, false);
-                int clickX = e.X - cellRect.X;
-                if ((clickX >= 14 && clickX <= 126) ||  // Choose File
-                    (clickX >= 144 && clickX <= 204) || // Edit
-                    (clickX >= 220 && clickX <= 292) || // Delete
-                    (clickX >= 296 && clickX <= 345))   // Checkbox
-                {
-                    dgvDataTableList.Cursor = Cursors.Hand;
-                }
-                else
-                {
-                    dgvDataTableList.Cursor = Cursors.Default;
-                }
+                var r = GetActionRects(cellRect);
+                Rectangle chkHit = r.check;
+                chkHit.Inflate(S(8), S(12));
+
+                bool onButton = r.choose.Contains(e.Location) || r.edit.Contains(e.Location)
+                             || r.delete.Contains(e.Location) || chkHit.Contains(e.Location);
+                dgvDataTableList.Cursor = onButton ? Cursors.Hand : Cursors.Default;
             }
             else
             {
@@ -921,34 +949,11 @@ ORDER BY t.TableID;";
             }
         }
 
-        private void dgvDataTableList_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            int actionColIdx = dgvDataTableList.Columns.Contains("colActions") ? dgvDataTableList.Columns["colActions"].Index : 3;
-            if (e.ColumnIndex == actionColIdx)
-            {
-                ToggleSelectAll();
-            }
-        }
-
         private void ToggleSelectAll()
         {
             if (dgvDataTableList.Rows.Count == 0) return;
 
-            bool allSelected = true;
-            foreach (DataGridViewRow row in dgvDataTableList.Rows)
-            {
-                if (row.Tag != null)
-                {
-                    int tid = Convert.ToInt32(row.Tag);
-                    if (!_selectedTableIds.Contains(tid))
-                    {
-                        allSelected = false;
-                        break;
-                    }
-                }
-            }
-
-            if (allSelected)
+            if (IsAllSelected())
             {
                 _selectedTableIds.Clear();
             }
@@ -957,13 +962,11 @@ ORDER BY t.TableID;";
                 foreach (DataGridViewRow row in dgvDataTableList.Rows)
                 {
                     if (row.Tag != null)
-                    {
                         _selectedTableIds.Add(Convert.ToInt32(row.Tag));
-                    }
                 }
             }
 
-            dgvDataTableList.Refresh();
+            dgvDataTableList.Invalidate();
         }
 
         private void OpenEditTable(int tableId)
@@ -1027,8 +1030,8 @@ ORDER BY t.TableID;";
 
             using (Form prompt = new Form())
             {
-                prompt.Width = 380;
-                prompt.Height = 210;
+                prompt.AutoScaleMode = AutoScaleMode.Dpi;
+                prompt.ClientSize = new Size(S(364), S(160));
                 prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
                 prompt.Text = "Move Tables to Group";
                 prompt.StartPosition = FormStartPosition.CenterParent;
@@ -1038,20 +1041,19 @@ ORDER BY t.TableID;";
 
                 Label lbl = new Label
                 {
-                    Left = 24,
-                    Top = 20,
+                    Left = S(24),
+                    Top = S(20),
                     Text = $"Move {targetIds.Count} selected table(s) to:",
                     Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                    ForeColor = Color.FromArgb(30, 41, 59),
+                    ForeColor = TextColor,
                     AutoSize = true
                 };
 
                 ComboBox cbo = new ComboBox
                 {
-                    Left = 24,
-                    Top = 54,
-                    Width = 316,
-                    Height = 32,
+                    Left = S(24),
+                    Top = S(54),
+                    Width = S(316),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Font = new Font("Segoe UI", 10F),
                     DataSource = dtGroups,
@@ -1062,11 +1064,11 @@ ORDER BY t.TableID;";
                 Button btnOk = new Button
                 {
                     Text = "Move",
-                    Left = 140,
-                    Top = 110,
-                    Width = 95,
-                    Height = 34,
-                    BackColor = Color.FromArgb(26, 117, 210),
+                    Left = S(140),
+                    Top = S(104),
+                    Width = S(95),
+                    Height = S(34),
+                    BackColor = Blue,
                     ForeColor = Color.White,
                     FlatStyle = FlatStyle.Flat,
                     Font = new Font("Segoe UI", 9F, FontStyle.Bold),
@@ -1078,10 +1080,10 @@ ORDER BY t.TableID;";
                 Button btnCancel = new Button
                 {
                     Text = "Cancel",
-                    Left = 245,
-                    Top = 110,
-                    Width = 95,
-                    Height = 34,
+                    Left = S(245),
+                    Top = S(104),
+                    Width = S(95),
+                    Height = S(34),
                     BackColor = Color.FromArgb(241, 245, 249),
                     ForeColor = Color.FromArgb(71, 85, 105),
                     FlatStyle = FlatStyle.Flat,
@@ -1204,15 +1206,24 @@ WHERE g.GroupName = @Group;",
             }
         }
 
+        // Same pattern as BtnCreate_Click: replace the current view inside the parent.
+        // CreateTableList is a Form, so it is embedded as a non-top-level child control.
+        // When it closes (after Save / Cancel), we navigate back to a fresh TableList.
         private void BtnCreateTableList_Click(object? sender, EventArgs e)
         {
-            using (CreateTableList createListForm = new CreateTableList())
+            Control? parent = this.Parent;
+            if (parent != null)
             {
-                if (createListForm.ShowDialog(this) == DialogResult.OK)
-                {
-                    LoadTableData();
-                }
+                parent.Controls.Clear();
+                CreateTableList createTableList = new CreateTableList { Dock = DockStyle.Fill };
+                parent.Controls.Add(createTableList);
+                createTableList.BringToFront();
             }
+        }
+
+        private void TableList_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }

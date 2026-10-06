@@ -14,12 +14,28 @@ namespace Resturant_Management.POS
 
         private bool _isInitialized = false;
 
+        // Polls the database so cards follow changes made elsewhere (new/renamed tables, orders, status)
+        private readonly System.Windows.Forms.Timer _refreshTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+        private string? _lastSignature;
+        private string? _lastError;
+
         public TableCards()
         {
             InitializeComponent();
             guna2Panel1.AutoScroll = true;
             if (DesignTimeHelper.IsInDesignMode(this))
                 return;
+
+            _refreshTimer.Tick += (s, e) =>
+            {
+                if (this.Visible && this.Parent != null && this.IsHandleCreated)
+                    LoadTablesFromDatabase();
+            };
+            this.Disposed += (s, e) =>
+            {
+                _refreshTimer.Stop();
+                _refreshTimer.Dispose();
+            };
 
             this.Load += (s, e) => InitRuntime();
             this.VisibleChanged += (s, e) =>
@@ -29,7 +45,10 @@ namespace Resturant_Management.POS
                     if (!_isInitialized)
                         InitRuntime();
                     else
-                        LoadTablesFromDatabase();
+                    {
+                        RefreshTables();
+                        _refreshTimer.Start();
+                    }
                 }
             };
         }
@@ -48,6 +67,26 @@ namespace Resturant_Management.POS
             if (_isInitialized) return;
             _isInitialized = true;
             LoadTablesFromDatabase();
+            _refreshTimer.Start();
+        }
+
+        /// <summary>Re-reads tables from the database immediately (e.g. after saving a table).</summary>
+        public void RefreshTables()
+        {
+            _lastSignature = null;
+            LoadTablesFromDatabase();
+        }
+
+        private static string BuildSignature(DataTable dt)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (DataRow row in dt.Rows)
+            {
+                foreach (var value in row.ItemArray)
+                    sb.Append(value?.ToString()).Append('\u001f');
+                sb.Append('\u001e');
+            }
+            return sb.ToString();
         }
 
         private void LoadTablesFromDatabase()
@@ -61,7 +100,8 @@ namespace Resturant_Management.POS
 SELECT 
     t.TableID, 
     t.TableCode, 
-    t.TableName, 
+    t.TableName,
+    ISNULL(t.Capacity, 0) AS Capacity,
     ISNULL(t.Status, 'Available') AS TableStatus,
     t.ImagePath,
     ISNULL(tg.GroupName, 'Main Area') AS GroupName,
@@ -81,8 +121,13 @@ ORDER BY t.TableID;";
 
                 DataTable dt = DbHelper.ExecuteQuery(sql);
 
+                // Skip redrawing when nothing changed, to avoid flicker on each poll
+                string signature = BuildSignature(dt);
+                if (signature == _lastSignature) return;
+                _lastSignature = signature;
+
                 Control[] designerCards = new Control[] { panelTable, panel, guna2Panel3, guna2Panel6, guna2Panel12 };
-                Label[] labels = new Label[] { lbtableNum, label3, label1, label2, label4 };
+                Control[] headers = new Control[] { headertable, guna2Panel11, guna2Panel5, guna2Panel8, guna2Panel14 };
                 PictureBox[] pictures = new PictureBox[] { Pictable, guna2PictureBox1, guna2PictureBox2, guna2PictureBox3, guna2PictureBox4 };
                 Control[] footers = new Control[] { footertable, guna2Panel10, guna2Panel4, guna2Panel7, guna2Panel13 };
 
@@ -104,7 +149,7 @@ ORDER BY t.TableID;";
                         designerCards[i].Visible = true;
                         DataRow row = dt.Rows[i];
                         int tableId = Convert.ToInt32(row["TableID"]);
-                        string tableName = row["TableName"]?.ToString() ?? $"Table-{i + 1}";
+                        string tableName = GetTableName(row, $"Table-{i + 1}");
                         int capacity = Convert.ToInt32(row["Capacity"]);
                         string rawStatus = row["TableStatus"]?.ToString() ?? "Available";
                         bool hasOpen = row["ActiveOrderID"] != DBNull.Value;
@@ -141,9 +186,25 @@ ORDER BY t.TableID;";
                             footerFg = Color.FromArgb(46, 125, 50);
                         }
 
-                        if (labels[i] != null)
+                        if (headers[i] != null)
                         {
-                            labels[i].Text = tableName;
+                            // Use the header's label, creating one if the designer has none
+                            Label? lblName = headers[i].Controls.OfType<Label>().FirstOrDefault();
+                            if (lblName == null)
+                            {
+                                lblName = new Label
+                                {
+                                    Font = new Font("Segoe UI", 10.2F, FontStyle.Bold),
+                                    ForeColor = Color.FromArgb(40, 40, 40),
+                                    BackColor = Color.Transparent
+                                };
+                                headers[i].Controls.Add(lblName);
+                            }
+                            // Fill the header and center so names of any length stay centered
+                            lblName.AutoSize = false;
+                            lblName.Dock = DockStyle.Fill;
+                            lblName.TextAlign = ContentAlignment.MiddleCenter;
+                            lblName.Text = tableName;
                         }
 
                         string? imgPath = row["ImagePath"]?.ToString();
@@ -197,7 +258,7 @@ ORDER BY t.TableID;";
                     foreach (DataRow row in dt.Rows)
                     {
                         int tableId = Convert.ToInt32(row["TableID"]);
-                        string tableName = row["TableName"]?.ToString() ?? "Table";
+                        string tableName = GetTableName(row, "Table");
                         int capacity = Convert.ToInt32(row["Capacity"]);
                         string rawStatus = row["TableStatus"]?.ToString() ?? "Available";
                         bool hasOpen = row["ActiveOrderID"] != DBNull.Value;
@@ -301,13 +362,42 @@ ORDER BY t.TableID;";
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading tables: {ex.Message}");
+                // Show each distinct error once, not on every refresh tick
+                if (ex.Message != _lastError)
+                {
+                    _lastError = ex.Message;
+                    _lastSignature = null;
+                    MessageBox.Show($"Could not load tables from the database:\n\n{ex.Message}",
+                        "Table Cards", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return;
             }
+            _lastError = null;
+        }
+
+        private static string GetTableName(DataRow row, string fallback)
+        {
+            string? name = row["TableName"] == DBNull.Value ? null : row["TableName"].ToString();
+            if (!string.IsNullOrWhiteSpace(name)) return name.Trim();
+
+            string? code = row["TableCode"] == DBNull.Value ? null : row["TableCode"].ToString();
+            return string.IsNullOrWhiteSpace(code) ? fallback : code.Trim();
         }
 
         private void BindCardClick(Control ctrl, int tableId, string tableName)
         {
+            // Store the current table on the control so refreshes don't stack click handlers
+            bool alreadyBound = ctrl.Tag is (int, string);
+            ctrl.Tag = (tableId, tableName);
             ctrl.Cursor = Cursors.Hand;
-            ctrl.Click += (s, e) => OpenPOSSale(tableId, tableName);
+            if (!alreadyBound)
+            {
+                ctrl.Click += (s, e) =>
+                {
+                    if (((Control)s!).Tag is (int id, string name))
+                        OpenPOSSale(id, name);
+                };
+            }
             foreach (Control child in ctrl.Controls)
             {
                 BindCardClick(child, tableId, tableName);
@@ -319,6 +409,8 @@ ORDER BY t.TableID;";
             Control? parentPanel = this.Parent;
             if (parentPanel == null) return;
 
+            // This view is being replaced, so stop polling the database
+            _refreshTimer.Stop();
             parentPanel.Controls.Clear();
 
             TableLayoutPanel posContainer = new TableLayoutPanel
@@ -342,12 +434,24 @@ ORDER BY t.TableID;";
             posContainer.BringToFront();
         }
 
-        private void guna2PictureBox1_Click(object? sender, EventArgs e) => OpenPOSSale(1, "Table-1");
-        private void label1_Click(object? sender, EventArgs e) => OpenPOSSale(2, "Table-2");
-        private void Pictable_Click(object? sender, EventArgs e) => OpenPOSSale(1, "Table-1");
         private void guna2Panel1_Paint(object? sender, PaintEventArgs e) { }
         private void guna2Panel3_Paint(object? sender, PaintEventArgs e) { }
         private void guna2Panel15_Paint(object? sender, PaintEventArgs e) { }
         private void guna2Panel21_Paint(object? sender, PaintEventArgs e) { }
+
+        private void headertable_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void lbtableNum_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Pictable_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

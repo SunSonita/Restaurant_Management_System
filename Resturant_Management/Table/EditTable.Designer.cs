@@ -64,19 +64,21 @@
             panelInformationItem.Controls.Add(txtName);
             panelInformationItem.Controls.Add(txtCode);
             panelInformationItem.FillColor = Color.White;
-            panelInformationItem.Location = new Point(251, 66);
+            panelInformationItem.Location = new Point(314, 82);
+            panelInformationItem.Margin = new Padding(4, 4, 4, 4);
             panelInformationItem.Name = "panelInformationItem";
             panelInformationItem.Radius = 8;
             panelInformationItem.ShadowColor = Color.Gray;
-            panelInformationItem.Size = new Size(1272, 229);
+            panelInformationItem.Size = new Size(1590, 286);
             panelInformationItem.TabIndex = 28;
             // 
             // lbTableGroup
             // 
             lbTableGroup.AutoSize = true;
-            lbTableGroup.Location = new Point(31, 147);
+            lbTableGroup.Location = new Point(39, 184);
+            lbTableGroup.Margin = new Padding(4, 0, 4, 0);
             lbTableGroup.Name = "lbTableGroup";
-            lbTableGroup.Size = new Size(89, 20);
+            lbTableGroup.Size = new Size(107, 25);
             lbTableGroup.TabIndex = 35;
             lbTableGroup.Text = "Group Table";
             // 
@@ -94,18 +96,20 @@
             comboTableGroup.ForeColor = Color.FromArgb(68, 88, 112);
             comboTableGroup.ItemHeight = 30;
             comboTableGroup.Items.AddRange(new object[] { "Main Table", "Delivery", "Take Out" });
-            comboTableGroup.Location = new Point(16, 159);
+            comboTableGroup.Location = new Point(20, 199);
+            comboTableGroup.Margin = new Padding(4, 4, 4, 4);
             comboTableGroup.Name = "comboTableGroup";
             comboTableGroup.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            comboTableGroup.Size = new Size(255, 36);
+            comboTableGroup.Size = new Size(318, 36);
             comboTableGroup.TabIndex = 36;
             // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(414, 192);
+            label1.Location = new Point(518, 240);
+            label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(155, 20);
+            label1.Size = new Size(186, 25);
             label1.TabIndex = 30;
             label1.Text = "Click to choose image";
             // 
@@ -116,10 +120,11 @@
             PicItem.BorderStyle = BorderStyle.FixedSingle;
             PicItem.CustomizableEdges = customizableEdges3;
             PicItem.ImageRotate = 0F;
-            PicItem.Location = new Point(400, 23);
+            PicItem.Location = new Point(500, 29);
+            PicItem.Margin = new Padding(4, 4, 4, 4);
             PicItem.Name = "PicItem";
             PicItem.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            PicItem.Size = new Size(185, 152);
+            PicItem.Size = new Size(231, 190);
             PicItem.SizeMode = PictureBoxSizeMode.StretchImage;
             PicItem.TabIndex = 29;
             PicItem.TabStop = false;
@@ -137,13 +142,13 @@
             txtName.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
             txtName.Font = new Font("Segoe UI", 9F);
             txtName.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtName.Location = new Point(16, 87);
-            txtName.Margin = new Padding(3, 4, 3, 4);
+            txtName.Location = new Point(20, 109);
+            txtName.Margin = new Padding(4, 5, 4, 5);
             txtName.Name = "txtName";
             txtName.PlaceholderText = "Name";
             txtName.SelectedText = "";
             txtName.ShadowDecoration.CustomizableEdges = customizableEdges6;
-            txtName.Size = new Size(255, 48);
+            txtName.Size = new Size(319, 60);
             txtName.TabIndex = 24;
             // 
             // txtCode
@@ -159,13 +164,13 @@
             txtCode.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
             txtCode.Font = new Font("Segoe UI", 9F);
             txtCode.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtCode.Location = new Point(16, 23);
-            txtCode.Margin = new Padding(3, 4, 3, 4);
+            txtCode.Location = new Point(20, 29);
+            txtCode.Margin = new Padding(4, 5, 4, 5);
             txtCode.Name = "txtCode";
             txtCode.PlaceholderText = "Code";
             txtCode.SelectedText = "";
             txtCode.ShadowDecoration.CustomizableEdges = customizableEdges8;
-            txtCode.Size = new Size(255, 48);
+            txtCode.Size = new Size(319, 60);
             txtCode.TabIndex = 22;
             // 
             // btnBack
@@ -179,10 +184,11 @@
             btnBack.FillColor = Color.Orange;
             btnBack.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnBack.ForeColor = Color.White;
-            btnBack.Location = new Point(402, 426);
+            btnBack.Location = new Point(502, 532);
+            btnBack.Margin = new Padding(4, 4, 4, 4);
             btnBack.Name = "btnBack";
             btnBack.ShadowDecoration.CustomizableEdges = customizableEdges10;
-            btnBack.Size = new Size(86, 39);
+            btnBack.Size = new Size(108, 49);
             btnBack.TabIndex = 31;
             btnBack.Text = "Back";
             // 
@@ -197,10 +203,11 @@
             btnUpdate.FillColor = Color.Navy;
             btnUpdate.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnUpdate.ForeColor = Color.White;
-            btnUpdate.Location = new Point(251, 426);
+            btnUpdate.Location = new Point(314, 532);
+            btnUpdate.Margin = new Padding(4, 4, 4, 4);
             btnUpdate.Name = "btnUpdate";
             btnUpdate.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            btnUpdate.Size = new Size(86, 39);
+            btnUpdate.Size = new Size(108, 49);
             btnUpdate.TabIndex = 30;
             btnUpdate.Text = "Update";
             // 
@@ -209,23 +216,26 @@
             label2.AutoSize = true;
             label2.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label2.ForeColor = Color.Navy;
-            label2.Location = new Point(251, 30);
+            label2.Location = new Point(314, 38);
+            label2.Margin = new Padding(4, 0, 4, 0);
             label2.Name = "label2";
-            label2.Size = new Size(122, 23);
+            label2.Size = new Size(147, 30);
             label2.TabIndex = 39;
             label2.Text = "Update  Table";
             // 
             // EditTable
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             Controls.Add(label2);
             Controls.Add(btnBack);
             Controls.Add(btnUpdate);
             Controls.Add(panelInformationItem);
+            Margin = new Padding(4, 4, 4, 4);
             Name = "EditTable";
-            Size = new Size(1824, 798);
+            Size = new Size(2280, 998);
+            Load += EditTable_Load_1;
             panelInformationItem.ResumeLayout(false);
             panelInformationItem.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)PicItem).EndInit();
