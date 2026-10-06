@@ -614,20 +614,97 @@ IF OBJECT_ID('dbo.vw_SaleByTable', 'V') IS NOT NULL
     DROP VIEW dbo.vw_SaleByTable;
 GO
 
+-- One row per order (amounts in KHR); the Sale by Table report groups it by table / table group
 CREATE VIEW dbo.vw_SaleByTable
 AS
-SELECT 
-    t.TableID,
-    t.TableCode,
-    t.TableName,
-    tg.GroupName AS TableGroupName,
-    COUNT(o.OrderID) AS OrderCount,
-    ISNULL(SUM(o.GrandTotal), 0) AS TotalAmountKHR,
-    ISNULL(ROUND(SUM(o.GrandTotal) / dbo.fn_UsdRate(), 2), 0) AS TotalAmountUSD
-FROM dbo.DINING_TABLE t
+SELECT
+    o.OrderID,
+    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
+    o.OrderNo,
+    o.PostingDate,
+    o.TableID,
+    CASE
+        WHEN o.TableID IS NULL THEN 'Takeaway / Delivery'
+        ELSE ISNULL(t.TableName, 'Table ' + CAST(o.TableID AS varchar(10)))
+    END AS TableName,
+    ISNULL(tg.GroupName, 'Main Dining Hall') AS GroupTable,
+    ISNULL(u.FullName, 'System') AS Creator,
+    o.SubTotal AS TotalBeforeDis,
+    o.ItemDiscountTotal + o.DocDiscountAmount AS DiscountItem,
+    o.GrandTotal AS TotalAfterDis,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS Paid,
+    o.Status
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
 LEFT JOIN dbo.TABLE_GROUP tg ON t.TableGroupID = tg.TableGroupID
-LEFT JOIN dbo.SALE_ORDER o ON t.TableID = o.TableID AND o.Status IN ('Sent', 'Billed', 'Paid')
-GROUP BY t.TableID, t.TableCode, t.TableName, tg.GroupName;
+LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
+WHERE o.Status IN ('Sent', 'Billed', 'Paid');
+GO
+
+-- One row per order (amounts in KHR) for the Sale Summary report
+CREATE OR ALTER VIEW dbo.vw_SaleSummary
+AS
+SELECT
+    o.OrderID,
+    o.PostingDate,
+    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
+    o.OrderNo,
+    ISNULL(u.FullName, 'System') AS Creator,
+    o.SubTotal AS TotalBeforeDiscount,
+    o.SubTotal AS TotalBeforeDis,
+    o.ItemDiscountTotal + o.DocDiscountAmount AS DiscountItem,
+    o.DocDiscountAmount AS DiscountOrder,
+    o.GrandTotal AS TotalAfterDiscount,
+    o.GrandTotal AS TotalAfterDis,
+    0 AS Tax,
+    0 AS ServiceCharge,
+    o.GrandTotal,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS PaidAmount,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS Paid,
+    ISNULL(p.ChangeGiven * p.ExchangeRate, 0) AS Change,
+    ISNULL(p.ChangeGiven * p.ExchangeRate, 0) AS ChangeAmount,
+    ISNULL(pm.MethodName, 'Cash') AS PaymentMethod,
+    o.Status AS PaymentStatus,
+    t.TableName,
+    c.CustomerName
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
+LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
+LEFT JOIN dbo.CUSTOMER c ON o.CustomerID = c.CustomerID
+OUTER APPLY (
+    SELECT TOP 1 PaymentID, ChangeGiven, ExchangeRate
+    FROM dbo.PAYMENT WHERE OrderID = o.OrderID
+    ORDER BY PaymentID DESC
+) p
+OUTER APPLY (
+    SELECT TOP 1 m.MethodName
+    FROM dbo.PAYMENT_DETAIL pd
+    JOIN dbo.PAYMENT_METHOD m ON pd.MethodID = m.MethodID
+    WHERE pd.PaymentID = p.PaymentID
+) pm
+WHERE o.Status IN ('Sent', 'Billed', 'Paid');
+GO
+
+-- Repair orders saved before the POS fix, which subtracted the document discount twice
+-- (it is already inside the line discounts). Safe to re-run.
+UPDATE o
+SET o.ItemDiscountTotal = x.NewItem,
+    o.GrandTotal = CASE WHEN o.SubTotal - x.NewItem - o.DocDiscountAmount > 0
+                        THEN o.SubTotal - x.NewItem - o.DocDiscountAmount ELSE 0 END
+FROM dbo.SALE_ORDER o
+CROSS APPLY (
+    SELECT CASE WHEN SUM(CASE WHEN i.TotalBeforeDis > i.TotalAfterDis THEN i.TotalBeforeDis - i.TotalAfterDis ELSE 0 END) > o.DocDiscountAmount
+                THEN SUM(CASE WHEN i.TotalBeforeDis > i.TotalAfterDis THEN i.TotalBeforeDis - i.TotalAfterDis ELSE 0 END) - o.DocDiscountAmount
+                ELSE 0 END AS NewItem,
+           COUNT(*) AS LineCount
+    FROM dbo.SALE_ORDER_ITEM i
+    WHERE i.OrderID = o.OrderID
+) x
+WHERE o.DocDiscountAmount > 0
+  AND x.LineCount > 0
+  AND (o.ItemDiscountTotal <> x.NewItem
+       OR o.GrandTotal <> CASE WHEN o.SubTotal - x.NewItem - o.DocDiscountAmount > 0
+                               THEN o.SubTotal - x.NewItem - o.DocDiscountAmount ELSE 0 END);
 GO
 
 IF OBJECT_ID('dbo.vw_DailyPaymentSummary', 'V') IS NOT NULL
@@ -697,87 +774,6 @@ SELECT
 FROM dbo.ITEM i
 LEFT JOIN dbo.STOCK_MOVEMENT sm ON i.ItemID = sm.ItemID
 GROUP BY i.ItemID;
-GO
-
-IF OBJECT_ID('dbo.vw_SaleSummary', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_SaleSummary;
-GO
-
-CREATE VIEW dbo.vw_SaleSummary
-AS
-SELECT 
-    o.OrderID,
-    o.PostingDate,
-    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
-    o.OrderNo,
-    ISNULL(u.FullName, 'System') AS Creator,
-    o.SubTotal AS TotalBeforeDiscount,
-    o.SubTotal AS TotalBeforeDis,
-    o.ItemDiscountTotal AS DiscountItem,
-    o.DocDiscountAmount AS DiscountOrder,
-    (o.SubTotal - o.ItemDiscountTotal - o.DocDiscountAmount) AS TotalAfterDiscount,
-    (o.SubTotal - o.ItemDiscountTotal - o.DocDiscountAmount) AS TotalAfterDis,
-    ISNULL(o.TaxAmount, 0) AS Tax,
-    ISNULL(o.ServiceChargeAmount, 0) AS ServiceCharge,
-    o.GrandTotal,
-    ISNULL(p.TotalReceived, o.GrandTotal) AS PaidAmount,
-    ISNULL(p.TotalReceived, o.GrandTotal) AS Paid,
-    ISNULL(p.ChangeGiven, 0) AS Change,
-    ISNULL(p.ChangeGiven, 0) AS ChangeAmount,
-    ISNULL(pm.MethodName, 'Cash') AS PaymentMethod,
-    o.Status AS PaymentStatus,
-    t.TableName,
-    c.CustomerName
-FROM dbo.SALE_ORDER o
-LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
-LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
-LEFT JOIN dbo.CUSTOMER c ON o.CustomerID = c.CustomerID
-OUTER APPLY (
-    SELECT TOP 1 PaymentID, TotalReceived, ChangeGiven
-    FROM dbo.PAYMENT WHERE OrderID = o.OrderID
-    ORDER BY PaymentID DESC
-) p
-OUTER APPLY (
-    SELECT TOP 1 m.MethodName
-    FROM dbo.PAYMENT_DETAIL pd
-    JOIN dbo.PAYMENT_METHOD m ON pd.MethodID = m.MethodID
-    WHERE pd.PaymentID = p.PaymentID
-) pm;
-GO
-
-IF OBJECT_ID('dbo.vw_SaleByTable', 'V') IS NOT NULL
-    DROP VIEW dbo.vw_SaleByTable;
-GO
-
-CREATE VIEW dbo.vw_SaleByTable
-AS
-SELECT 
-    o.OrderID,
-    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
-    o.OrderNo,
-    o.PostingDate,
-    o.TableID,
-    CASE 
-        WHEN o.TableID IS NULL THEN 'Takeaway / Delivery' 
-        ELSE ISNULL(t.TableName, 'Table ' + CAST(o.TableID AS varchar(10))) 
-    END AS TableName,
-    ISNULL(tg.GroupName, 'Main Dining Hall') AS GroupTable,
-    ISNULL(u.FullName, 'System') AS Creator,
-    o.SubTotal AS TotalBeforeDis,
-    o.ItemDiscountTotal AS DiscountItem,
-    o.DocDiscountAmount AS DiscountDoc,
-    (o.SubTotal - o.ItemDiscountTotal - o.DocDiscountAmount) AS TotalAfterDis,
-    ISNULL(p.TotalReceived, o.GrandTotal) AS Paid,
-    o.Status
-FROM dbo.SALE_ORDER o
-LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
-LEFT JOIN dbo.TABLE_GROUP tg ON t.TableGroupID = tg.TableGroupID
-LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
-OUTER APPLY (
-    SELECT TOP 1 TotalReceived 
-    FROM dbo.PAYMENT WHERE OrderID = o.OrderID
-    ORDER BY PaymentID DESC
-) p;
 GO
 
 IF OBJECT_ID('dbo.vw_SaleByGroup', 'V') IS NOT NULL

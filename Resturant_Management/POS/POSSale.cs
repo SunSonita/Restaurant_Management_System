@@ -1,4 +1,4 @@
-using Guna.UI2.WinForms;
+﻿using Guna.UI2.WinForms;
 using Resturant_Management.Payment;
 using System;
 using System.Collections.Generic;
@@ -56,7 +56,6 @@ namespace Resturant_Management.POS
         private int _currentCustomerId = 1;
         private long _currentOrderId = 0;
         private string _currentOrderNo = "";
-        private string _invoiceNo = "";
         private string _orderNote = "";
 
         // Custom Document Discount State
@@ -77,17 +76,12 @@ namespace Resturant_Management.POS
         {
             _tableId = tableId;
             _tableName = tableName;
+            _currentOrderNo = GenerateOrderNo();
 
             InitializeComponentByCode();
             SetupCartGridColumns();
 
-            if (DesignTimeHelper.IsInDesignMode(this))
-                return;
-
-            _currentOrderNo = GenerateOrderNo();
-            _invoiceNo = GenerateInvoiceNo();
-
-            lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo})";
+            lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo}";
 
             LoadDefaultCustomer();
             LoadActiveOrderForTable();
@@ -113,7 +107,7 @@ namespace Resturant_Management.POS
             try
             {
                 string sql = @"
-SELECT TOP 1 o.OrderID, o.OrderNo, o.InvoiceNo, o.CustomerID, c.CustomerName, o.Note, o.DocDiscountAmount, o.Status
+SELECT TOP 1 o.OrderID, o.OrderNo, o.CustomerID, c.CustomerName, o.Note, o.DocDiscountAmount, o.Status
 FROM dbo.SALE_ORDER o
 LEFT JOIN dbo.CUSTOMER c ON o.CustomerID = c.CustomerID
 WHERE o.TableID = @TableID AND o.Status IN ('Open', 'Sent', 'Billed')
@@ -125,9 +119,6 @@ ORDER BY o.OrderID DESC;";
                     DataRow r = dt.Rows[0];
                     _currentOrderId = Convert.ToInt64(r["OrderID"]);
                     _currentOrderNo = r["OrderNo"]?.ToString() ?? _currentOrderNo;
-                    _invoiceNo = (r["InvoiceNo"] != DBNull.Value && !string.IsNullOrWhiteSpace(r["InvoiceNo"].ToString()))
-                        ? r["InvoiceNo"].ToString()!
-                        : GenerateInvoiceNo();
                     _currentCustomerId = r["CustomerID"] != DBNull.Value ? Convert.ToInt32(r["CustomerID"]) : 1;
                     if (r["CustomerName"] != DBNull.Value)
                         lblCustomerName.Text = r["CustomerName"].ToString()!;
@@ -136,7 +127,7 @@ ORDER BY o.OrderID DESC;";
                     currentDocDiscountKHR = r["DocDiscountAmount"] != DBNull.Value ? Convert.ToDecimal(r["DocDiscountAmount"]) : 0m;
                     string status = r["Status"]?.ToString() ?? "Open";
 
-                    lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) ({status})";
+                    lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} ({status})";
 
                     string itemsSql = @"
 SELECT oi.[LineNo], i.ItemCode, oi.ItemName, oi.Qty, oi.UomName, oi.UnitPrice, oi.TotalBeforeDis, oi.DiscountPercent, oi.TotalAfterDis
@@ -168,38 +159,6 @@ ORDER BY oi.[LineNo] ASC;";
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading active order: {ex.Message}");
-            }
-        }
-
-        private string GenerateInvoiceNo()
-        {
-            try
-            {
-                string todayPrefix = $"INV-{DateTime.Now:yyyyMMdd}-";
-                object? maxObj = DbHelper.ExecuteScalar(
-                    "SELECT TOP 1 InvoiceNo FROM dbo.SALE_ORDER WHERE InvoiceNo LIKE @Prefix + '%' ORDER BY InvoiceNo DESC",
-                    new SqlParameter("@Prefix", todayPrefix));
-
-                if (maxObj != null && maxObj != DBNull.Value)
-                {
-                    string maxStr = maxObj.ToString()!;
-                    if (maxStr.Length > todayPrefix.Length)
-                    {
-                        string suffix = maxStr.Substring(todayPrefix.Length);
-                        if (int.TryParse(suffix, out int currentSeq))
-                        {
-                            return $"{todayPrefix}{(currentSeq + 1):D4}";
-                        }
-                    }
-                }
-
-                object? countObj = DbHelper.ExecuteScalar("SELECT COUNT(1) FROM dbo.SALE_ORDER WHERE CAST(PostingDate AS date) = CAST(GETDATE() AS date)");
-                int seq = (countObj != null && countObj != DBNull.Value) ? Convert.ToInt32(countObj) + 1 : 1;
-                return $"{todayPrefix}{seq:D4}";
-            }
-            catch
-            {
-                return $"INV-{DateTime.Now:yyyyMMdd}-{DateTime.Now:HHmmss}";
             }
         }
 
@@ -299,15 +258,26 @@ ORDER BY oi.[LineNo] ASC;";
                     try
                     {
                         string sql = @"
-SELECT i.ItemCode, i.ItemName, COALESCE(ip.PriceKHR, ip.PriceUSD * 4000, 0) AS Price 
-FROM dbo.ITEM i 
-LEFT JOIN dbo.vw_ItemPrice ip ON i.ItemID = ip.ItemID 
+SELECT i.ItemCode, i.ItemName, COALESCE(ip.PriceKHR, ip.PriceUSD * 4000, 0) AS Price,
+       i.IsStockItem, ISNULL(s.QtyOnHand, 0) AS StockQty
+FROM dbo.ITEM i
+LEFT JOIN dbo.vw_ItemPrice ip ON i.ItemID = ip.ItemID
+LEFT JOIN dbo.vw_ItemStock s ON i.ItemID = s.ItemID
 WHERE i.ItemCode = @code AND i.IsInactive = 0";
                         DataTable dt = DbHelper.ExecuteQuery(sql, new SqlParameter("@code", barcode));
                         if (dt.Rows.Count > 0)
                         {
                             string code = dt.Rows[0]["ItemCode"]?.ToString() ?? barcode;
                             string name = dt.Rows[0]["ItemName"]?.ToString() ?? barcode;
+                            bool isStock = dt.Rows[0]["IsStockItem"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["IsStockItem"]);
+                            decimal stockQty = Convert.ToDecimal(dt.Rows[0]["StockQty"]);
+                            if (isStock && stockQty <= 0)
+                            {
+                                MessageBox.Show($"\"{name}\" is out of stock and cannot be ordered.",
+                                                "Out of Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                txtReadBarcode.Clear();
+                                return;
+                            }
                             decimal price = Convert.ToDecimal(dt.Rows[0]["Price"]);
                             AddProductToCart(code, name, price);
                         }
@@ -425,318 +395,303 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
         private void BtnReceipt_Click(object? sender, EventArgs e)
         {
-            OpenReceiptList();
-        }
-
-        public void OpenReceiptList()
-        {
-            using (var frm = new FrmReceiptList())
+            // Show the receipt list as a child view in the same content area as POS (like Report);
+            // the POS layout is only hidden so the cart is intact when the list is closed.
+            Control posView = Parent is TableLayoutPanel ? Parent : this;
+            Control? host = posView.Parent;
+            if (host == null)
             {
-                frm.StartPosition = FormStartPosition.CenterParent;
-                Form? parentForm = this.FindForm();
-                if (parentForm != null)
-                    frm.ShowDialog(parentForm);
-                else
-                    frm.ShowDialog(this);
+                using var dialog = new ReceiptListForm();
+                dialog.ShowDialog(FindForm());
+                return;
             }
+
+            var receipts = new ReceiptListForm
+            {
+                TopLevel = false,
+                FormBorderStyle = FormBorderStyle.None,
+                Dock = DockStyle.Fill
+            };
+            receipts.FormClosed += (s, ev) =>
+            {
+                host.Controls.Remove(receipts);
+                posView.Visible = true;
+                posView.BringToFront();
+            };
+
+            posView.Visible = false;
+            host.Controls.Add(receipts);
+            receipts.BringToFront();
+            receipts.Show();
         }
 
-        private void Show80mmReceiptPreview()
+        private void Print80mmInvoice()
         {
             try
             {
-                int calculatedHeight = Calculate80mmReceiptHeight();
-
-                var printDoc = new System.Drawing.Printing.PrintDocument();
-                printDoc.DocumentName = $"Receipt_{_invoiceNo}_{_currentOrderNo}";
-                // Suppress "Generating preview..." / progress popup
-                printDoc.PrintController = new System.Drawing.Printing.StandardPrintController();
-
-                // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
-                printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, calculatedHeight);
-                printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
-
-                printDoc.PrintPage += (ps, pe) =>
+                // Time In = when the order was first created; Time Out = when the bill is printed
+                DateTime timeIn = DateTime.Now;
+                if (_currentOrderId > 0)
                 {
-                    if (pe.Graphics != null)
-                    {
-                        Render80mmReceipt(pe.Graphics, 315, calculatedHeight);
-                    }
+                    object? posted = DbHelper.ExecuteScalar("SELECT PostingDate FROM dbo.SALE_ORDER WHERE OrderID = @OID",
+                                                            new SqlParameter("@OID", _currentOrderId));
+                    if (posted != null && posted != DBNull.Value) timeIn = Convert.ToDateTime(posted);
+                }
+                DateTime timeOut = DateTime.Now;
+
+                var printDoc = BuildInvoicePrintDocument(timeIn, timeOut);
+
+                using var preview = new PrintPreviewDialog
+                {
+                    Document = printDoc,
+                    Width = 520,
+                    Height = 740,
+                    StartPosition = FormStartPosition.CenterParent,
+                    Text = $"Print Preview (80x80) - Invoice {_currentOrderNo}"
                 };
 
-                using var preview = new FrmReceiptPreview(
-                    printDoc,
-                    $"Print Preview (80x80) - {_invoiceNo} (#{_currentOrderNo})",
-                    (g, w, h) => Render80mmReceipt(g, w, h));
+                var ppc = preview.Controls.OfType<PrintPreviewControl>().FirstOrDefault();
+                if (ppc != null)
+                {
+                    ppc.AutoZoom = false;
+                    ppc.Zoom = 1.25;
+                    ppc.Rows = 1;
+                    ppc.Columns = 1;
+                }
 
-                preview.ShowDialog(this);
+                preview.ShowDialog();
+                printDoc.Dispose();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Print preview error: {ex.Message}", "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Print invoice error: {ex.Message}", "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private int Calculate80mmReceiptHeight()
+        /// <summary>Builds the invoice as a single 80mm x 80mm page.</summary>
+        internal System.Drawing.Printing.PrintDocument BuildInvoicePrintDocument(DateTime timeIn, DateTime timeOut)
         {
-            float h = 20f;  // Top margin
-            h += 24f;       // Company title
-            h += 34f;       // Address / Phone
-            h += 24f;       // Receipt title
-            h += 14f;       // Line & gap
-            h += 108f;      // Order meta (including Invoice No)
-            if (!string.IsNullOrEmpty(_orderNote)) h += 18f;
-            h += 14f;       // Line & gap
-            h += 26f;       // Header & line
-
-            using (Bitmap dummyBmp = new Bitmap(1, 1))
-            using (Graphics g = Graphics.FromImage(dummyBmp))
-            using (Font itemFont = DbHelper.GetKhmerFont(8F, FontStyle.Regular))
+            // Measure on the printer's own graphics so the page length matches what is printed
+            float contentHeight;
+            var printDoc = new System.Drawing.Printing.PrintDocument();
+            try
             {
-                foreach (DataGridViewRow row in dgvCart.Rows)
-                {
-                    string name = row.Cells["colName"].Value?.ToString() ?? "";
-                    SizeF sz = g.MeasureString(name, itemFont, 135);
-                    float rowH = Math.Max(18f, sz.Height + 2);
-                    h += rowH + 4f;
-
-                    decimal discPct = ParseDecimal(row.Cells["colDisc"].Value);
-                    if (discPct > 0) h += 14f;
-                }
+                using Graphics mg = printDoc.PrinterSettings.CreateMeasurementGraphics();
+                contentHeight = Render80mmInvoice(mg, timeIn, timeOut);
             }
+            catch
+            {
+                using Bitmap bmp = new Bitmap(1, 1);
+                using Graphics bg = Graphics.FromImage(bmp);
+                contentHeight = Render80mmInvoice(bg, timeIn, timeOut);
+            }
+            // Fixed 80mm x 80mm page (315 x 315 hundredths of an inch); a long invoice is scaled down to fit on the one page
+            const int pageSize = 315;
+            const float bottomPad = 6f;
+            float scale = Math.Min(1f, (pageSize - bottomPad) / contentHeight);
+            float offsetX = pageSize * (1f - scale) / 2f;
 
-            h += 14f;       // Line & gap
-            h += 20f;       // Subtotal
-            if (currentDocDiscountKHR > 0) h += 20f;
-            h += 52f;       // Grand totals KHR & USD
-            h += 60f;       // Payment & change lines (if present)
-            h += 52f;       // Footer greetings
-            h += 40f;       // Bottom padding
-
-            return Math.Max(350, (int)Math.Ceiling(h));
+            printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
+            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80 x 80mm", pageSize, pageSize);
+            printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+            printDoc.PrintPage += (ps, pe) =>
+            {
+                if (pe.Graphics == null) return;
+                if (scale < 1f)
+                {
+                    pe.Graphics.TranslateTransform(offsetX, 0);
+                    pe.Graphics.ScaleTransform(scale, scale);
+                }
+                Render80mmInvoice(pe.Graphics, timeIn, timeOut);
+            };
+            return printDoc;
         }
 
-        private void Render80mmReceipt(Graphics g, float paperWidth, float paperHeight)
+        /// <summary>Draws the 80mm guest invoice (USD with KHR grand total). Returns the final Y used, for page-height sizing.</summary>
+        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            float printableWidth = 299f;
-            float startX = 8f;
-            float endX = startX + printableWidth;
-            float y = 12f;
+            float startX = 6f;
+            float width = 303f;
+            float endX = startX + width;
+            float y = 8f;
 
-            using var fontTitle = DbHelper.GetKhmerFont(11F, FontStyle.Bold);
-            using var fontSubtitle = DbHelper.GetKhmerFont(8F, FontStyle.Regular);
-            using var fontHeader = DbHelper.GetKhmerFont(9.5F, FontStyle.Bold);
-            using var fontBody = DbHelper.GetKhmerFont(8F, FontStyle.Regular);
-            using var fontBodyBold = DbHelper.GetKhmerFont(8F, FontStyle.Bold);
-            using var fontTotal = DbHelper.GetKhmerFont(10F, FontStyle.Bold);
-            using var fontSmall = DbHelper.GetKhmerFont(7.5F, FontStyle.Regular);
+            using var fontTitle = DbHelper.GetKhmerFont(13F, FontStyle.Regular);
+            using var fontMeta = DbHelper.GetKhmerFont(8F, FontStyle.Regular);
+            using var fontQueue = DbHelper.GetKhmerFont(10F, FontStyle.Regular);
+            using var fontHead = DbHelper.GetKhmerFont(8F, FontStyle.Bold);
+            using var fontBody = DbHelper.GetKhmerFont(7.5F, FontStyle.Regular);
+            using var fontSum = DbHelper.GetKhmerFont(8.5F, FontStyle.Regular);
+            using var fontGrand = DbHelper.GetKhmerFont(9F, FontStyle.Bold);
+            using var penSolid = new Pen(Color.Black, 1f);
+            using var penDot = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dot };
+            Brush brush = Brushes.Black;
 
-            using var penDash = new Pen(Color.FromArgb(90, 90, 90), 1f) { DashStyle = DashStyle.Dash };
-            using var penSolid = new Pen(Color.Black, 1.2f);
-            using var brushText = new SolidBrush(Color.Black);
-
-            using var sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             using var sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+            using var sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             using var sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
-            using var sfItem = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near, Trimming = StringTrimming.Word };
+            using var sfWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
 
-            // 1. Company Profile
-            string compName = "RESTAURANT MANAGEMENT";
-            string compPhone = "";
-            string compAddress = "";
-            try
-            {
-                DataTable dtComp = DbHelper.ExecuteQuery("SELECT TOP 1 CompanyName, Phone, Address FROM dbo.COMPANY_PROFILE");
-                if (dtComp.Rows.Count > 0)
-                {
-                    string? cName = dtComp.Rows[0]["CompanyName"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(cName)) compName = cName;
-                    compPhone = dtComp.Rows[0]["Phone"]?.ToString() ?? "";
-                    compAddress = dtComp.Rows[0]["Address"]?.ToString() ?? "";
-                }
-            }
-            catch { }
+            // Cart amounts are KHR (same rule as the rest of POS: totals >= 100 are riel)
+            bool cartIsKhr = GetCartSubTotal() >= 100m;
+            decimal ToUsd(decimal v) => cartIsKhr ? v / KhrPerUsd : v;
 
-            g.DrawString(compName, fontTitle, brushText, new RectangleF(startX, y, printableWidth, 22), sfCenter);
-            y += 22;
+            // 1. Title
+            g.DrawString("INVOICE", fontTitle, brush, new RectangleF(startX, y, width, 22), sfCenter);
+            y += 19;
 
-            if (!string.IsNullOrWhiteSpace(compAddress))
-            {
-                g.DrawString(compAddress, fontSubtitle, brushText, new RectangleF(startX, y, printableWidth, 16), sfCenter);
-                y += 16;
-            }
-            if (!string.IsNullOrWhiteSpace(compPhone))
-            {
-                g.DrawString($"Tel: {compPhone}", fontSubtitle, brushText, new RectangleF(startX, y, printableWidth, 16), sfCenter);
-                y += 16;
-            }
+            // 2. Header info: left (Cashier/Table/Queue) and right (Time In/Time Out)
+            float lblW = 44f, leftValW = 82f;
+            float rightX = startX + lblW + leftValW + 4f;
+            float rLblW = 52f;
+            float rValW = endX - rightX - rLblW;
+            const string dtFmt = "dd-MM-yyyy hh:mm tt";
 
-            y += 4;
-            g.DrawString("RECEIPT / វិក្កយបត្រ", fontHeader, brushText, new RectangleF(startX, y, printableWidth, 20), sfCenter);
-            y += 22;
+            g.DrawString("Cashier", fontMeta, brush, new RectangleF(startX, y, lblW, 17), sfLeft);
+            g.DrawString(": " + UserSession.Username, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 17), sfLeft);
+            g.DrawString("Time In  :", fontMeta, brush, new RectangleF(rightX, y, rLblW, 17), sfLeft);
+            g.DrawString(timeIn.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 17), sfRight);
+            y += 17;
 
-            g.DrawLine(penDash, startX, y, endX, y);
-            y += 6;
+            g.DrawString("Table", fontMeta, brush, new RectangleF(startX, y, lblW, 17), sfLeft);
+            g.DrawString(": " + _tableName, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 17), sfLeft);
+            g.DrawString("Time Out:", fontMeta, brush, new RectangleF(rightX, y, rLblW, 17), sfLeft);
+            g.DrawString(timeOut.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 17), sfRight);
+            y += 17;
 
-            // 2. Order Metadata
-            void DrawMetaRow(string label, string val)
-            {
-                g.DrawString(label, fontBodyBold, brushText, new RectangleF(startX, y, 75, 16), sfLeft);
-                g.DrawString(val, fontBody, brushText, new RectangleF(startX + 75, y, printableWidth - 75, 16), sfLeft);
-                y += 17;
-            }
-
-            DrawMetaRow("Invoice No :", string.IsNullOrEmpty(_invoiceNo) ? $"#{_currentOrderNo}" : _invoiceNo);
-            DrawMetaRow("Order No   :", $"#{_currentOrderNo}");
-            DrawMetaRow("Table      :", _tableName);
-            DrawMetaRow("Customer   :", lblCustomerName.Text);
-            DrawMetaRow("Date       :", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-            DrawMetaRow("Cashier    :", UserSession.FullName);
-            if (!string.IsNullOrEmpty(_orderNote))
-            {
-                DrawMetaRow("Note       :", _orderNote);
-            }
-
-            y += 4;
-            g.DrawLine(penDash, startX, y, endX, y);
-            y += 6;
-
-            // 3. Item Table Header
-            float colItemW = 135f;
-            float colQtyW = 32f;
-            float colPriceW = 58f;
-            float colTotalW = 68f;
-
-            float colItemX = startX;
-            float colQtyX = colItemX + colItemW + 2f;
-            float colPriceX = colQtyX + colQtyW + 2f;
-            float colTotalX = colPriceX + colPriceW + 2f;
-
-            g.DrawString("Item", fontBodyBold, brushText, new RectangleF(colItemX, y, colItemW, 18), sfLeft);
-            g.DrawString("Qty", fontBodyBold, brushText, new RectangleF(colQtyX, y, colQtyW, 18), sfCenter);
-            g.DrawString("Price", fontBodyBold, brushText, new RectangleF(colPriceX, y, colPriceW, 18), sfRight);
-            g.DrawString("Total", fontBodyBold, brushText, new RectangleF(colTotalX, y, colTotalW, 18), sfRight);
+            g.DrawString("Queue", fontMeta, brush, new RectangleF(startX, y, lblW, 20), sfLeft);
+            g.DrawString(": " + _currentOrderNo, fontQueue, brush, new RectangleF(startX + lblW, y, width - lblW, 20), sfLeft);
             y += 20;
 
-            g.DrawLine(penDash, startX, y, endX, y);
-            y += 6;
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 3;
 
-            // 4. Cart Items
+            // 3. Item table
+            float cNoW = 18f, cQtyW = 36f, cPriceW = 46f, cDisW = 36f, cTotW = 50f;
+            float cDescW = width - cNoW - cQtyW - cPriceW - cDisW - cTotW;
+            float cNoX = startX;
+            float cDescX = cNoX + cNoW;
+            float cQtyX = cDescX + cDescW;
+            float cPriceX = cQtyX + cQtyW;
+            float cDisX = cPriceX + cPriceW;
+            float cTotX = cDisX + cDisW;
+
+            g.DrawString("№", fontHead, brush, new RectangleF(cNoX, y, cNoW, 18), sfLeft);
+            g.DrawString("Description", fontHead, brush, new RectangleF(cDescX, y, cDescW, 18), sfLeft);
+            g.DrawString("Qty", fontHead, brush, new RectangleF(cQtyX, y, cQtyW, 18), sfCenter);
+            g.DrawString("Price", fontHead, brush, new RectangleF(cPriceX, y, cPriceW, 18), sfRight);
+            g.DrawString("Dis.", fontHead, brush, new RectangleF(cDisX, y, cDisW, 18), sfRight);
+            g.DrawString("Total", fontHead, brush, new RectangleF(cTotX, y, cTotW, 18), sfRight);
+            y += 19;
+
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 2;
+
+            decimal subBeforeUsd = 0m;
+            int lineNo = 1;
             foreach (DataGridViewRow row in dgvCart.Rows)
             {
                 string name = row.Cells["colName"].Value?.ToString() ?? "";
                 decimal qty = ParseDecimal(row.Cells["colQty"].Value);
-                decimal price = ParseDecimal(row.Cells["colPrice"].Value);
-                decimal aftDis = ParseDecimal(row.Cells["colAftDis"].Value);
+                decimal priceUsd = ToUsd(ParseDecimal(row.Cells["colPrice"].Value));
+                decimal befUsd = ToUsd(ParseDecimal(row.Cells["colBefDis"].Value));
+                decimal aftUsd = ToUsd(ParseDecimal(row.Cells["colAftDis"].Value));
                 decimal discPct = ParseDecimal(row.Cells["colDisc"].Value);
+                subBeforeUsd += befUsd;
 
-                SizeF nameSize = g.MeasureString(name, fontBody, (int)colItemW, sfItem);
-                float rowH = Math.Max(18f, nameSize.Height + 2);
+                SizeF nameSize = g.MeasureString(name, fontBody, (int)cDescW, sfWrap);
+                float rowH = Math.Max(18f, nameSize.Height);
 
-                g.DrawString(name, fontBody, brushText, new RectangleF(colItemX, y, colItemW, rowH), sfItem);
-                g.DrawString(qty.ToString("0.##"), fontBody, brushText, new RectangleF(colQtyX, y, colQtyW, 18), sfCenter);
-                g.DrawString(price.ToString("N0"), fontBody, brushText, new RectangleF(colPriceX, y, colPriceW, 18), sfRight);
-                g.DrawString(aftDis.ToString("N0"), fontBody, brushText, new RectangleF(colTotalX, y, colTotalW, 18), sfRight);
+                g.DrawString(lineNo.ToString(), fontBody, brush, new RectangleF(cNoX + 2, y, cNoW, rowH), sfLeft);
+                g.DrawString(name, fontBody, brush, new RectangleF(cDescX, y + (rowH - nameSize.Height) / 2f, cDescW, nameSize.Height + 2), sfWrap);
+                g.DrawString(qty.ToString("0.0"), fontBody, brush, new RectangleF(cQtyX, y, cQtyW, rowH), sfCenter);
+                g.DrawString(priceUsd.ToString("N2"), fontBody, brush, new RectangleF(cPriceX, y, cPriceW, rowH), sfRight);
+                g.DrawString($"{discPct:0.##}%", fontBody, brush, new RectangleF(cDisX, y, cDisW, rowH), sfRight);
+                g.DrawString(aftUsd.ToString("N2"), fontBody, brush, new RectangleF(cTotX, y, cTotW, rowH), sfRight);
                 y += rowH;
-
-                if (discPct > 0)
-                {
-                    g.DrawString($"  (Disc: {discPct:0.##}%)", fontSmall, Brushes.DimGray, new RectangleF(colItemX, y, colItemW, 14), sfLeft);
-                    y += 14;
-                }
-                y += 3;
+                lineNo++;
             }
 
-            g.DrawLine(penDash, startX, y, endX, y);
-            y += 6;
+            y += 2;
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 4;
 
-            // 5. Totals
-            decimal subTotalKHR = GetCartSubTotal();
-            decimal subTotalUSD = subTotalKHR >= 100m ? (subTotalKHR / KhrPerUsd) : subTotalKHR;
-            decimal docDiscountKHR = currentDocDiscountKHR;
-            decimal itemDiscountKHR = 0;
-            foreach (DataGridViewRow row in dgvCart.Rows)
-            {
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                if (bef > aft) itemDiscountKHR += (bef - aft);
-            }
-            decimal totalDiscountKHR = itemDiscountKHR + docDiscountKHR;
-            decimal grandTotalKHR = Math.Max(0m, subTotalKHR - totalDiscountKHR);
-            decimal grandTotalUSD = grandTotalKHR >= 100m ? (grandTotalKHR / KhrPerUsd) : grandTotalKHR;
+            // 4. Totals
+            var cartTotals = ComputeCartTotals();
+            decimal discountUsd = ToUsd(cartTotals.itemDiscount + cartTotals.docDiscount);
+            decimal subAfterUsd = Math.Max(0m, subBeforeUsd - discountUsd);
+            decimal grandUsd = subAfterUsd;
+            decimal grandKhr = grandUsd * KhrPerUsd;
+            decimal discPctTotal = subBeforeUsd > 0 ? Math.Round(discountUsd / subBeforeUsd * 100m, 2) : 0m;
 
-            void DrawSummaryRow(string label, string val, Font f)
+            float sumLblW = 196f;
+            void DrawTotal(string label, string value, Font f)
             {
-                g.DrawString(label, f, brushText, new RectangleF(startX, y, 120, 18), sfLeft);
-                g.DrawString(val, f, brushText, new RectangleF(startX + 120, y, printableWidth - 120, 18), sfRight);
+                g.DrawString(label, f, brush, new RectangleF(startX, y, sumLblW, 19), sfRight);
+                g.DrawString(value, f, brush, new RectangleF(startX + sumLblW, y, width - sumLblW, 19), sfRight);
                 y += 19;
             }
 
-            DrawSummaryRow("SubTotal :", $"KHR {subTotalKHR:N0} (${subTotalUSD:N2})", fontBody);
-            if (totalDiscountKHR > 0)
-            {
-                DrawSummaryRow("Discount :", $"- KHR {totalDiscountKHR:N0}", fontBody);
-            }
+            DrawTotal("Sub Total Before Discount :", $"USD {subBeforeUsd:N2}", fontSum);
+            DrawTotal($"Discount ({discPctTotal:0.##}%) :", $"USD {discountUsd:N2}", fontSum);
+            DrawTotal("Sub Total After Discount :", $"USD {subAfterUsd:N2}", fontSum);
+            DrawTotal("Grand Total :", $"USD {grandUsd:N2}", fontGrand);
 
             y += 2;
-            g.DrawLine(penSolid, startX, y, endX, y);
-            y += 6;
+            g.DrawLine(penDot, startX, y, endX, y);
+            y += 4;
 
-            DrawSummaryRow("GRAND TOTAL :", $"KHR {grandTotalKHR:N0}", fontTotal);
-            DrawSummaryRow("TOTAL USD   :", $"${grandTotalUSD:N2}", fontTotal);
-
-            y += 2;
-            g.DrawLine(penSolid, startX, y, endX, y);
-            y += 6;
-
-            // 6. Payment Information (if paid)
-            try
-            {
-                if (_currentOrderId > 0)
-                {
-                    DataTable dtPay = DbHelper.ExecuteQuery(
-                        @"SELECT TOP 1 p.TotalDue, p.TotalReceived, p.ChangeAmount, p.ExchangeRate, pm.MethodName
-                          FROM dbo.PAYMENT p
-                          LEFT JOIN dbo.PAYMENT_LINE pl ON p.PaymentID = pl.PaymentID
-                          LEFT JOIN dbo.PAYMENT_METHOD pm ON pl.MethodID = pm.MethodID
-                          WHERE p.OrderID = @OID
-                          ORDER BY p.PaymentID DESC",
-                        new SqlParameter("@OID", _currentOrderId));
-
-                    if (dtPay.Rows.Count > 0)
-                    {
-                        decimal totalRec = Convert.ToDecimal(dtPay.Rows[0]["TotalReceived"]);
-                        decimal change = Convert.ToDecimal(dtPay.Rows[0]["ChangeAmount"]);
-                        decimal rate = Convert.ToDecimal(dtPay.Rows[0]["ExchangeRate"]);
-                        string method = dtPay.Rows[0]["MethodName"]?.ToString() ?? "Cash";
-
-                        DrawSummaryRow($"Paid ({method}) :", $"${totalRec:N2} ({(totalRec * rate):N0} ៛)", fontBody);
-                        DrawSummaryRow("Change :", $"${change:N2} ({(change * rate):N0} ៛)", fontBodyBold);
-                        y += 2;
-                        g.DrawLine(penDash, startX, y, endX, y);
-                        y += 6;
-                    }
-                }
-            }
-            catch { }
-
-            // 7. Footer
-            y += 6;
-            g.DrawString("Thank you for dining with us!", fontBodyBold, brushText, new RectangleF(startX, y, printableWidth, 18), sfCenter);
-            y += 18;
-            g.DrawString("សូមអរគុណ សូមអញ្ជើញមកពិសាម្តងទៀត!", fontBody, brushText, new RectangleF(startX, y, printableWidth, 18), sfCenter);
+            g.DrawString($"KHR {grandKhr:N0}", fontSum, brush, new RectangleF(startX, y, width, 19), sfRight);
             y += 20;
 
-            g.DrawString($"Printed: {DateTime.Now:yyyy-MM-dd HH:mm:ss}", fontSmall, Brushes.DimGray, new RectangleF(startX, y, printableWidth, 14), sfCenter);
-            y += 16;
+            return y;
         }
 
         private void BtnReceiptList_Click(object? sender, EventArgs e)
         {
-            OpenReceiptList();
+            using (Form modal = new Form())
+            {
+                modal.Text = "Recent Orders & Receipts";
+                modal.Size = new Size(800, 500);
+                modal.StartPosition = FormStartPosition.CenterParent;
+
+                DataGridView dgvOrders = new DataGridView
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    RowHeadersVisible = false,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                };
+
+                try
+                {
+                    string sql = @"
+SELECT 
+    o.OrderID,
+    o.OrderNo,
+    t.TableName,
+    o.Status,
+    o.SubTotal,
+    o.GrandTotal,
+    o.PostingDate
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.DINING_TABLE t ON t.TableID = o.TableID
+ORDER BY o.OrderID DESC;";
+                    DataTable dt = DbHelper.ExecuteQuery(sql);
+                    dgvOrders.DataSource = dt;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                }
+
+                modal.Controls.Add(dgvOrders);
+                modal.ShowDialog();
+            }
         }
 
         private static decimal ParseDecimal(object? val)
@@ -795,17 +750,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
         {
             if (dgvCart.Rows.Count == 0) return 0;
 
-            decimal subTotalKHR = GetCartSubTotal();
-            decimal docDiscountKHR = currentDocDiscountKHR;
-            decimal itemDiscountKHR = 0;
-            foreach (DataGridViewRow row in dgvCart.Rows)
-            {
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                if (bef > aft) itemDiscountKHR += (bef - aft);
-            }
-            decimal grandTotalKHR = subTotalKHR - itemDiscountKHR - docDiscountKHR;
-            if (grandTotalKHR < 0) grandTotalKHR = 0;
+            var (subTotalKHR, itemDiscountKHR, docDiscountKHR, grandTotalKHR) = ComputeCartTotals();
 
             decimal docDiscountPct = (subTotalKHR > 0) ? (docDiscountKHR / subTotalKHR * 100m) : 0m;
 
@@ -819,14 +764,13 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 {
                     string insertOrderSql = @"
 INSERT INTO dbo.SALE_ORDER 
-(OrderNo, InvoiceNo, TableID, CustomerID, CreatedBy, PostingDate, Status, Note, SubTotal, ItemDiscountTotal, DocDiscountPercent, DocDiscountAmount, GrandTotal, ExchangeRate)
+(OrderNo, TableID, CustomerID, CreatedBy, PostingDate, Status, Note, SubTotal, ItemDiscountTotal, DocDiscountPercent, DocDiscountAmount, GrandTotal, ExchangeRate)
 VALUES 
-(@OrderNo, @InvoiceNo, @TableID, @CustomerID, @CreatedBy, SYSDATETIME(), @Status, @Note, @SubTotal, @ItemDiscountTotal, @DocDiscountPercent, @DocDiscountAmount, @GrandTotal, @ExchangeRate);
+(@OrderNo, @TableID, @CustomerID, @CreatedBy, SYSDATETIME(), @Status, @Note, @SubTotal, @ItemDiscountTotal, @DocDiscountPercent, @DocDiscountAmount, @GrandTotal, @ExchangeRate);
 SELECT SCOPE_IDENTITY();";
 
                     using var cmdOrder = new SqlCommand(insertOrderSql, conn, trans);
                     cmdOrder.Parameters.AddWithValue("@OrderNo", _currentOrderNo);
-                    cmdOrder.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                     cmdOrder.Parameters.AddWithValue("@TableID", (object?)_tableId ?? DBNull.Value);
                     cmdOrder.Parameters.AddWithValue("@CustomerID", _currentCustomerId);
                     cmdOrder.Parameters.AddWithValue("@CreatedBy", UserSession.UserID > 0 ? UserSession.UserID : 1);
@@ -846,7 +790,6 @@ SELECT SCOPE_IDENTITY();";
                 {
                     string updateOrderSql = @"
 UPDATE dbo.SALE_ORDER SET 
-    InvoiceNo = COALESCE(InvoiceNo, @InvoiceNo),
     TableID = @TableID, 
     CustomerID = @CustomerID, 
     Status = @Status, 
@@ -859,7 +802,6 @@ UPDATE dbo.SALE_ORDER SET
 WHERE OrderID = @OrderID;";
 
                     using var cmdUpdate = new SqlCommand(updateOrderSql, conn, trans);
-                    cmdUpdate.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                     cmdUpdate.Parameters.AddWithValue("@TableID", (object?)_tableId ?? DBNull.Value);
                     cmdUpdate.Parameters.AddWithValue("@CustomerID", _currentCustomerId);
                     cmdUpdate.Parameters.AddWithValue("@Status", status);
@@ -875,13 +817,6 @@ WHERE OrderID = @OrderID;";
                     using var cmdDel = new SqlCommand("DELETE FROM dbo.SALE_ORDER_ITEM WHERE OrderID = @OrderID", conn, trans);
                     cmdDel.Parameters.AddWithValue("@OrderID", orderId);
                     cmdDel.ExecuteNonQuery();
-                }
-
-                if (_tableId > 0 && status != "Paid" && status != "Void")
-                {
-                    using var cmdTableOcc = new SqlCommand("UPDATE dbo.DINING_TABLE SET Status = 'Occupied' WHERE TableID = @TID", conn, trans);
-                    cmdTableOcc.Parameters.AddWithValue("@TID", _tableId);
-                    cmdTableOcc.ExecuteNonQuery();
                 }
 
                 int lineNo = 1;
@@ -949,8 +884,8 @@ VALUES
             try
             {
                 SaveOrderToDatabase("Sent");
-                lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) (Sent)";
-                MessageBox.Show($"Order {_invoiceNo} (#{_currentOrderNo}) for {_tableName} sent to kitchen successfully!",
+                lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} (Sent)";
+                MessageBox.Show($"Order #{_currentOrderNo} for {_tableName} sent to kitchen successfully!",
                                 "Kitchen Order Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -969,9 +904,9 @@ VALUES
             try
             {
                 SaveOrderToDatabase("Billed");
-                lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) (Billed)";
-                // Open Receipt preview for printing/showing the guest bill
-                Show80mmReceiptPreview();
+                lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} (Billed)";
+                // Print the guest invoice
+                Print80mmInvoice();
             }
             catch (Exception ex)
             {
@@ -991,6 +926,8 @@ VALUES
             long orderId;
             try
             {
+                DbHelper.EnsurePaymentSchema();
+
                 string statusToSave = "Open";
                 if (_currentOrderId > 0)
                 {
@@ -1019,20 +956,10 @@ VALUES
 
                 POSPayment paymentControl = new POSPayment
                 {
-                    Dock = DockStyle.Fill,
-                    InvoiceNo = _invoiceNo
+                    Dock = DockStyle.Fill
                 };
 
-                decimal subTotal = GetCartSubTotal();
-                decimal totalGridDiscount = 0;
-                foreach (DataGridViewRow row in dgvCart.Rows)
-                {
-                    decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                    decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-                    if (bef > aft) totalGridDiscount += (bef - aft);
-                }
-                decimal grandTotal = subTotal - totalGridDiscount;
-                if (grandTotal < 0) grandTotal = 0;
+                decimal grandTotal = ComputeCartTotals().grandTotal;
 
                 decimal totalUSD = grandTotal >= 100m ? (grandTotal / KhrPerUsd) : grandTotal;
                 decimal totalKHR = grandTotal < 100m ? (grandTotal * KhrPerUsd) : grandTotal;
@@ -1056,15 +983,14 @@ VALUES
                         decimal changeUSD = paymentControl.ChangeAmountUSD;
 
                         string insertPaymentSql = @"
-INSERT INTO dbo.PAYMENT (OrderID, InvoiceNo, PaymentDate, TotalDue, TotalReceived, ChangeAmount, ChangeGiven, ExchangeRate, ReceivedBy)
-VALUES (@OrderID, @InvoiceNo, @Date, @Due, @Rec, @Chg, @Chg, @Rate, @User);
+INSERT INTO dbo.PAYMENT (OrderID, PaymentDate, TotalDue, TotalReceived, ChangeAmount, ExchangeRate, ReceivedBy)
+VALUES (@OrderID, @Date, @Due, @Rec, @Chg, @Rate, @User);
 SELECT SCOPE_IDENTITY();";
 
                         long paymentId;
                         using (var cmd = new SqlCommand(insertPaymentSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@OrderID", orderId);
-                            cmd.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                             cmd.Parameters.AddWithValue("@Date", paymentControl.PaymentDate);
                             cmd.Parameters.AddWithValue("@Due", totalDueUSD);
                             cmd.Parameters.AddWithValue("@Rec", totalReceivedUSD);
@@ -1077,7 +1003,7 @@ SELECT SCOPE_IDENTITY();";
                         void AddPaymentLine(byte methodId, string currency, decimal amount)
                         {
                             if (amount <= 0) return;
-                            decimal rate = currency == "USD" ? 4000m : 1m;
+                            decimal rate = currency == "USD" ? KhrPerUsd : 1m;
                             string lineSql = @"
 INSERT INTO dbo.PAYMENT_DETAIL (PaymentID, MethodID, CurrencyCode, Amount, ExchangeRate)
 VALUES (@PID, @MID, @Cur, @Amt, @Rate);";
@@ -1095,20 +1021,10 @@ VALUES (@PID, @MID, @Cur, @Amt, @Rate);";
                         AddPaymentLine(2, "USD", paymentControl.AbaUSD);
                         AddPaymentLine(2, "KHR", paymentControl.AbaKHR);
 
-                        using (var cmdPaid = new SqlCommand("UPDATE dbo.SALE_ORDER SET Status = 'Paid', InvoiceNo = COALESCE(InvoiceNo, @Inv) WHERE OrderID = @OID", conn, trans))
+                        using (var cmdPaid = new SqlCommand("UPDATE dbo.SALE_ORDER SET Status = 'Paid' WHERE OrderID = @OID", conn, trans))
                         {
-                            cmdPaid.Parameters.AddWithValue("@Inv", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                             cmdPaid.Parameters.AddWithValue("@OID", orderId);
                             cmdPaid.ExecuteNonQuery();
-                        }
-
-                        if (_tableId > 0)
-                        {
-                            using (var cmdTable = new SqlCommand("UPDATE dbo.DINING_TABLE SET Status = 'Available' WHERE TableID = @TID", conn, trans))
-                            {
-                                cmdTable.Parameters.AddWithValue("@TID", _tableId);
-                                cmdTable.ExecuteNonQuery();
-                            }
                         }
 
                         string stockItemsSql = @"
@@ -1150,11 +1066,11 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
 
                         trans.Commit();
 
-                        MessageBox.Show($"Payment for Invoice {_invoiceNo} (#{_currentOrderNo}) completed successfully!\nChange: {changeUSD:N2} USD ({(changeUSD * KhrPerUsd):N0} KHR)",
+                        MessageBox.Show($"Payment for #{_currentOrderNo} completed successfully!\nChange: {changeUSD:N2} USD ({(changeUSD * KhrPerUsd):N0} KHR)",
                                         "Payment Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         // Show receipt preview for paid order
-                        Show80mmReceiptPreview();
+                        ReceiptPrinter.ShowPreview(orderId, FindForm());
 
                         dgvCart.Rows.Clear();
                         currentDocDiscountKHR = 0.00m;
@@ -1162,8 +1078,7 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                         btnNote.Text = "Note";
                         _currentOrderId = 0;
                         _currentOrderNo = GenerateOrderNo();
-                        _invoiceNo = GenerateInvoiceNo();
-                        lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo})";
+                        lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo}";
                         RecalculateTotals();
                     }
                     catch (Exception ex)
@@ -1207,12 +1122,8 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                 AutoSize = false,
                 Dock = DockStyle.Bottom,
                 Height = 22,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Cursor = Cursors.Hand
+                TextAlign = ContentAlignment.MiddleCenter
             };
-            lblReceipt.Click += (s, e) => OpenReceiptList();
-            receiptHost.Cursor = Cursors.Hand;
-            receiptHost.Click += (s, e) => OpenReceiptList();
             receiptHost.Controls.Add(btnReceipt);
             receiptHost.Controls.Add(lblReceipt);
             pnlToolbar.Controls.Add(receiptHost);
@@ -1800,40 +1711,38 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
             return subTotal;
         }
 
+        /// <summary>
+        /// Single source of truth for cart totals (KHR). The document discount is already spread into the rows'
+        /// After-Discount values, so it is taken out of the row discount to avoid subtracting it twice.
+        /// </summary>
+        private (decimal subTotal, decimal itemDiscount, decimal docDiscount, decimal grandTotal) ComputeCartTotals()
+        {
+            decimal subTotal = 0m;
+            decimal totalGridDiscount = 0m;
+            foreach (DataGridViewRow row in dgvCart.Rows)
+            {
+                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
+                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
+                subTotal += bef;
+                if (bef > aft) totalGridDiscount += (bef - aft);
+            }
+
+            decimal docDiscount = currentDocDiscountKHR;
+            decimal itemDiscount = docDiscount > 0 ? Math.Max(0m, totalGridDiscount - docDiscount) : totalGridDiscount;
+            decimal grandTotal = Math.Max(0m, subTotal - itemDiscount - docDiscount);
+            return (subTotal, itemDiscount, docDiscount, grandTotal);
+        }
+
         private void RecalculateTotals()
         {
             int totalRows = dgvCart.Rows.Count;
             decimal totalQty = 0;
-            decimal subTotal = 0;
-            decimal totalGridDiscount = 0;
-
             foreach (DataGridViewRow row in dgvCart.Rows)
             {
-                decimal q = ParseDecimal(row.Cells["colQty"].Value);
-                decimal bef = ParseDecimal(row.Cells["colBefDis"].Value);
-                decimal aft = ParseDecimal(row.Cells["colAftDis"].Value);
-
-                totalQty += q;
-                subTotal += bef;
-
-                if (bef > aft)
-                    totalGridDiscount += (bef - aft);
+                totalQty += ParseDecimal(row.Cells["colQty"].Value);
             }
 
-            decimal docDiscount = currentDocDiscountKHR;
-            decimal itemDiscount = 0m;
-
-            if (docDiscount > 0)
-            {
-                itemDiscount = Math.Max(0m, totalGridDiscount - docDiscount);
-            }
-            else
-            {
-                itemDiscount = totalGridDiscount;
-            }
-
-            decimal grandTotal = subTotal - itemDiscount - docDiscount;
-            if (grandTotal < 0) grandTotal = 0;
+            var (subTotal, itemDiscount, docDiscount, grandTotal) = ComputeCartTotals();
 
             lblCountRows.Text = $"Count Rows :{totalRows}";
             lblCountQtys.Text = $"Count Qtys :{totalQty:N0}";
