@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
@@ -90,6 +90,7 @@ namespace Resturant_Management.Report
 
             string selectedCreator = comboCreator.SelectedItem?.ToString() ?? "All Creators";
             string reportType = cmbTypeReport.SelectedItem?.ToString() ?? "Summary by Order";
+            ConfigureGridColumns(reportType);
             string search = txtSearch.Text.Trim();
             if (search.StartsWith("Search", StringComparison.OrdinalIgnoreCase) && search.Contains("."))
             {
@@ -262,10 +263,40 @@ ORDER BY PostingDate DESC;";
 
             // Update summary labels
             if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR";
-            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount Item : {sumDisItem:N2} KHR";
+            if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount : {sumDisItem:N2} KHR";
             if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Total After Discount : {sumAfterDis:N2} KHR";
             if (lbGrandTotal != null) lbGrandTotal.Text = $"Grand Total : {sumAfterDis:N2} KHR";
             AlignSummaryLabels();
+        }
+
+        /// <summary>The first two grid columns hold different data per report type; label and size them to match.</summary>
+        private void ConfigureGridColumns(string reportType)
+        {
+            (string first, string second, float firstWeight, float secondWeight) = reportType switch
+            {
+                "Daily Summary" => ("No", "Date", 40f, 110f),
+                "Summary by Creator" => ("No", "Creator", 40f, 150f),
+                _ => ("Order No", "Posting Date", 90f, 130f)
+            };
+            ApplyGridColumnLayout(first, second, firstWeight, secondWeight);
+        }
+        private void ApplyGridColumnLayout(string first, string second, float firstWeight, float secondWeight)
+        {
+            colNo.HeaderText = first;
+            colNo.FillWeight = firstWeight;
+            colPostingDate.HeaderText = second;
+            colPostingDate.FillWeight = secondWeight;
+            colDisItem.HeaderText = "Discount";
+
+            foreach (DataGridViewColumn col in new DataGridViewColumn[] { colTotalbeforeDis, colDisItem, colTotalAtferDis, colPaid })
+            {
+                col.FillWeight = 110f;
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+                col.DefaultCellStyle.Padding = new Padding(0, 0, 10, 0);
+                col.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
+            }
+            colNo.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            colPostingDate.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
         }
 
         private void ApplyResponsiveLayout()
