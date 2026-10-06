@@ -265,6 +265,8 @@ ORDER BY PostingDate DESC;";
                 MessageBox.Show($"Error loading sale by table data: {ex.Message}", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
+            gridDataitem.ClearSelection();
+
             if (lbTotalBeforeDis != null) lbTotalBeforeDis.Text = $"Total Before Discount : {sumBeforeDis:N2} KHR";
             if (lbTotalAfterDis != null) lbTotalAfterDis.Text = $"Discount : {sumDisItem:N2} KHR";
             if (lbTotalAfterDisc != null) lbTotalAfterDisc.Text = $"Total After Discount : {sumAfterDis:N2} KHR";
@@ -289,17 +291,59 @@ ORDER BY PostingDate DESC;";
             colNo.FillWeight = firstWeight;
             colPostingDate.HeaderText = second;
             colPostingDate.FillWeight = secondWeight;
-            colDisItem.HeaderText = "Discount";
+            colTotalbeforeDis.HeaderText = "Total Before Discount (KHR)";
+            colDisItem.HeaderText = "Discount (KHR)";
+            colTotalAtferDis.HeaderText = "Total After Discount (KHR)";
+            colPaid.HeaderText = "Paid (KHR)";
 
             foreach (DataGridViewColumn col in new DataGridViewColumn[] { colTotalbeforeDis, colDisItem, colTotalAtferDis, colPaid })
             {
-                col.FillWeight = 110f;
+                col.FillWeight = 120f;
                 col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-                col.DefaultCellStyle.Padding = new Padding(0, 0, 10, 0);
+                col.DefaultCellStyle.Padding = new Padding(0, 0, 12, 0);
                 col.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
+                col.HeaderCell.Style.Padding = new Padding(0, 0, 12, 0);
             }
-            colNo.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            colPostingDate.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            foreach (DataGridViewColumn col in new DataGridViewColumn[] { colNo, colPostingDate })
+            {
+                col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                col.DefaultCellStyle.Padding = new Padding(10, 0, 0, 0);
+                col.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                col.HeaderCell.Style.Padding = new Padding(10, 0, 0, 0);
+            }
+            foreach (DataGridViewColumn col in gridDataitem.Columns)
+            {
+                col.SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
+
+            gridDataitem.AllowUserToAddRows = false;
+            gridDataitem.ReadOnly = true;
+
+            // Flat navy header matching the report title and Filter button; light row separators
+            Color navy = Color.FromArgb(10, 20, 110);
+            gridDataitem.EnableHeadersVisualStyles = false;
+            gridDataitem.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            gridDataitem.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            gridDataitem.ColumnHeadersHeight = 40;
+            gridDataitem.ColumnHeadersDefaultCellStyle.BackColor = navy;
+            gridDataitem.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            gridDataitem.ColumnHeadersDefaultCellStyle.SelectionBackColor = navy;
+            gridDataitem.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.White;
+            gridDataitem.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            gridDataitem.ThemeStyle.HeaderStyle.BackColor = navy;
+            gridDataitem.ThemeStyle.HeaderStyle.ForeColor = Color.White;
+            gridDataitem.ThemeStyle.HeaderStyle.BorderStyle = DataGridViewHeaderBorderStyle.None;
+            gridDataitem.ThemeStyle.HeaderStyle.Height = 40;
+
+            gridDataitem.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            gridDataitem.GridColor = Color.FromArgb(228, 230, 240);
+            gridDataitem.ThemeStyle.GridColor = Color.FromArgb(228, 230, 240);
+            gridDataitem.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(247, 248, 252);
+            gridDataitem.ThemeStyle.AlternatingRowsStyle.BackColor = Color.FromArgb(247, 248, 252);
+            gridDataitem.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 230, 250);
+            gridDataitem.DefaultCellStyle.SelectionForeColor = Color.FromArgb(20, 25, 60);
+            gridDataitem.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 230, 250);
+            gridDataitem.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.FromArgb(20, 25, 60);
         }
 
         private void ApplyResponsiveLayout()
