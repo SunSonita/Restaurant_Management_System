@@ -45,7 +45,7 @@ namespace Resturant_Management.Table
             RelayoutPage();
 
             comboTableGroup.Items.Clear();
-            comboTableGroup.Items.Add("MainTable");
+            comboTableGroup.Items.Add("Normal");
             comboTableGroup.Items.Add("Delivery");
             comboTableGroup.Items.Add("TakeOut");
             comboTableGroup.SelectedIndex = -1; // Starts blank, user must click to select

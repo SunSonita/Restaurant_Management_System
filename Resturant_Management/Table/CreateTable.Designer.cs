@@ -65,7 +65,7 @@
             panelInformationItem.Controls.Add(txtCode);
             panelInformationItem.FillColor = Color.White;
             panelInformationItem.Location = new Point(196, 78);
-            panelInformationItem.Margin = new Padding(4, 4, 4, 4);
+            panelInformationItem.Margin = new Padding(4);
             panelInformationItem.Name = "panelInformationItem";
             panelInformationItem.Radius = 8;
             panelInformationItem.ShadowColor = Color.Gray;
@@ -94,9 +94,9 @@
             comboTableGroup.Font = new Font("Segoe UI", 10F);
             comboTableGroup.ForeColor = Color.FromArgb(68, 88, 112);
             comboTableGroup.ItemHeight = 30;
-            comboTableGroup.Items.AddRange(new object[] { "Main Table", "Delivery", "Take Out" });
+            comboTableGroup.Items.AddRange(new object[] { "Normal", "Delivery", "Take Out" });
             comboTableGroup.Location = new Point(20, 199);
-            comboTableGroup.Margin = new Padding(4, 4, 4, 4);
+            comboTableGroup.Margin = new Padding(4);
             comboTableGroup.Name = "comboTableGroup";
             comboTableGroup.ShadowDecoration.CustomizableEdges = customizableEdges2;
             comboTableGroup.Size = new Size(318, 36);
@@ -120,7 +120,7 @@
             PicItem.CustomizableEdges = customizableEdges3;
             PicItem.ImageRotate = 0F;
             PicItem.Location = new Point(715, 29);
-            PicItem.Margin = new Padding(4, 4, 4, 4);
+            PicItem.Margin = new Padding(4);
             PicItem.Name = "PicItem";
             PicItem.ShadowDecoration.CustomizableEdges = customizableEdges4;
             PicItem.Size = new Size(231, 190);
@@ -182,7 +182,7 @@
             btnBack.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnBack.ForeColor = Color.White;
             btnBack.Location = new Point(369, 582);
-            btnBack.Margin = new Padding(4, 4, 4, 4);
+            btnBack.Margin = new Padding(4);
             btnBack.Name = "btnBack";
             btnBack.ShadowDecoration.CustomizableEdges = customizableEdges10;
             btnBack.Size = new Size(108, 49);
@@ -201,7 +201,7 @@
             btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnSave.ForeColor = Color.White;
             btnSave.Location = new Point(196, 582);
-            btnSave.Margin = new Padding(4, 4, 4, 4);
+            btnSave.Margin = new Padding(4);
             btnSave.Name = "btnSave";
             btnSave.ShadowDecoration.CustomizableEdges = customizableEdges12;
             btnSave.Size = new Size(108, 49);
@@ -229,7 +229,7 @@
             Controls.Add(btnBack);
             Controls.Add(btnSave);
             Controls.Add(panelInformationItem);
-            Margin = new Padding(4, 4, 4, 4);
+            Margin = new Padding(4);
             Name = "CreateTable";
             Size = new Size(2296, 990);
             Load += CreateTable_Load_1;
