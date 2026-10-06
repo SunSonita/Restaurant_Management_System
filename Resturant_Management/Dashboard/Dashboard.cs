@@ -205,7 +205,9 @@ namespace Resturant_Management
             logoImage = PictureLogo.Image;
 
             //  Header button ----
-            PictureLogo.Height = 75;
+            // Same height as the top header bar so both bottom edges line up
+            // (the header is auto-scaled with the system font/DPI, so read its real height)
+            PictureLogo.Height = header.Height;
             PictureLogo.BackColor = Color.FromArgb(191, 234, 255);
 
             collapseBtn = new IconPictureBox
@@ -219,7 +221,12 @@ namespace Resturant_Management
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
-            collapseBtn.Location = new Point(SidebarExpandedW - 40, 24);
+            collapseBtn.Location = new Point(SidebarExpandedW - 40, CollapseBtnTop());
+            header.SizeChanged += (s, e) =>
+            {
+                PictureLogo.Height = header.Height;
+                collapseBtn.Top = CollapseBtnTop();
+            };
             using (var gp = new GraphicsPath())
             {
                 gp.AddEllipse(0, 0, 26, 26);
@@ -325,6 +332,9 @@ namespace Resturant_Management
             SetSidebarCollapsed(false);
         }
 
+        // Vertically centre the round collapse button inside the logo header
+        private int CollapseBtnTop() => Math.Max(0, (PictureLogo.Height - collapseBtn.Height) / 2);
+
         private void SetSidebarCollapsed(bool collapse)
         {
             sidebarCollapsed = collapse;
@@ -336,8 +346,8 @@ namespace Resturant_Management
             PictureLogo.Image = collapse ? null : logoImage;
             collapseBtn.IconChar = collapse ? IconChar.ChevronRight : IconChar.ChevronLeft;
             collapseBtn.Location = collapse
-                ? new Point((SidebarCollapsedW - collapseBtn.Width) / 2, 24)
-                : new Point(SidebarExpandedW - 40, 24);
+                ? new Point((SidebarCollapsedW - collapseBtn.Width) / 2, CollapseBtnTop())
+                : new Point(SidebarExpandedW - 40, CollapseBtnTop());
 
             // search box
             pnlSearch.Visible = !collapse;
