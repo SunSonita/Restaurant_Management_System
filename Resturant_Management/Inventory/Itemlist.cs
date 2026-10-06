@@ -14,28 +14,77 @@ namespace Resturant_Management.Inventory
         private readonly Color Blue = Color.FromArgb(21, 119, 214);
         private readonly Color BorderGray = Color.FromArgb(220, 224, 230);
 
-        private const int ToolbarHeight = 48;   // was 60 -> smaller gap above the grid
+        private const int ToolbarHeight = 56;
 
         // Only controls that are NOT already in the designer
         private Panel pnlHeader = null!, pnlToolbar = null!, pnlFooter = null!, pnlGrid = null!;
+        private Panel pnlSearchBox = null!;
         private Label lblPageInfo = null!;
+
+        private bool _isInitialized = false;
 
         public Itemlist()
         {
             InitializeComponent();
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
+            this.Load += Itemlist_Load;
+            this.VisibleChanged += (s, e) =>
+            {
+                if (this.Visible && !DesignTimeHelper.IsInDesignMode(this))
+                {
+                    if (!_isInitialized)
+                        InitRuntime();
+                    else
+                        LoadItemData();
+                }
+            };
         }
 
-        private void Itemlist_Load(object sender, EventArgs e)
+        protected override void OnHandleCreated(EventArgs e)
         {
+            base.OnHandleCreated(e);
+            if (!DesignTimeHelper.IsInDesignMode(this) && !_isInitialized)
+            {
+                InitRuntime();
+            }
+        }
+
+        private void Itemlist_Load(object? sender, EventArgs e)
+        {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
+            InitRuntime();
+        }
+
+        private void InitRuntime()
+        {
+            if (_isInitialized) return;
+            _isInitialized = true;
+
             BuildLayout();
             ApplyUIStyle();
             SetupColumns();
+
+            btnCreate.Click -= btnCreate_Click;
             btnCreate.Click += btnCreate_Click;
+
+            dgvItemMasterData.CellClick -= dgvItemMasterData_CellClick;
             dgvItemMasterData.CellClick += dgvItemMasterData_CellClick;
-            chkInactive.CheckedChanged += (s, ev) => LoadItemData();
-            txtSearch.TextChanged += (s, ev) => LoadItemData();
+
+            chkInactive.CheckedChanged -= ChkInactive_CheckedChanged;
+            chkInactive.CheckedChanged += ChkInactive_CheckedChanged;
+
+            txtSearch.TextChanged -= TxtSearch_TextChanged;
+            txtSearch.TextChanged += TxtSearch_TextChanged;
+
             LoadItemData();
         }
+
+        private void ChkInactive_CheckedChanged(object? sender, EventArgs e) => LoadItemData();
+        private void TxtSearch_TextChanged(object? sender, EventArgs e) => LoadItemData();
 
         private void BuildLayout()
         {
@@ -59,64 +108,82 @@ namespace Resturant_Management.Inventory
 
             // Guna2Button: use FillColor / BorderRadius (no FlatStyle)
             btnCreate.Text = "Create";
-            btnCreate.Size = new Size(85, 40);
+            btnCreate.Size = new Size(120, 40);
             btnCreate.FillColor = Blue;
             btnCreate.ForeColor = Color.White;
             btnCreate.BorderRadius = 4;
             btnCreate.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            btnCreate.TextAlign = HorizontalAlignment.Center;
+            btnCreate.TextOffset = new Point(0, 0);
+            btnCreate.Padding = new Padding(0);
             btnCreate.Cursor = Cursors.Hand;
 
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(btnCreate);
-            pnlHeader.Resize += (s, ev) => btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
-            btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
+
+            void RepositionHeaderButtons()
+            {
+                btnCreate.Location = new Point(pnlHeader.Width - btnCreate.Width - 15, 9);
+            }
+            pnlHeader.Resize += (s, ev) => RepositionHeaderButtons();
+            RepositionHeaderButtons();
 
             // ---------- Toolbar (Inactive + search) ----------
             pnlToolbar = new Panel { Dock = DockStyle.Top, Height = ToolbarHeight, BackColor = Color.White };
 
             chkInactive.Text = "Inactive";
+            chkInactive.Font = new Font("Segoe UI", 9.5f);
             chkInactive.AutoSize = true;
 
-            txtSearch.Width = 180;
+            pnlSearchBox = new Panel
+            {
+                Size = new Size(240, 36),
+                BackColor = Color.White
+            };
+            pnlSearchBox.Paint += (s, ev) =>
+            {
+                using var pen = new Pen(BorderGray, 1);
+                ev.Graphics.DrawRectangle(pen, 0, 0, pnlSearchBox.Width - 1, pnlSearchBox.Height - 1);
+            };
+            pnlSearchBox.Click += (s, e) => txtSearch.Focus();
+
+            txtSearch.Multiline = false;
+            txtSearch.BorderStyle = BorderStyle.None;
+            txtSearch.Font = new Font("Segoe UI", 10f);
+            txtSearch.ForeColor = Color.FromArgb(50, 50, 50);
             txtSearch.Text = "";
             txtSearch.PlaceholderText = "Search...";
+            txtSearch.Width = pnlSearchBox.Width - 20;
+            txtSearch.Location = new Point(10, (pnlSearchBox.Height - txtSearch.PreferredHeight) / 2);
 
+            pnlSearchBox.Controls.Add(txtSearch);
             pnlToolbar.Controls.Add(chkInactive);
-            pnlToolbar.Controls.Add(txtSearch);
+            pnlToolbar.Controls.Add(pnlSearchBox);
             pnlToolbar.Resize += (s, ev) => PositionToolbar();
             PositionToolbar();
 
-            // ---------- Footer (page size + page info) ----------
-            pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 55, BackColor = Color.White };
-
-            int x = 20;
-            foreach (string n in new[] { "20", "50", "100", "150" })
+            // ---------- Footer (total items count) ----------
+            pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Color.White };
+            pnlFooter.Paint += (s, ev) =>
             {
-                var b = new Button
-                {
-                    Text = n,
-                    Size = new Size(40, 38),
-                    Location = new Point(x, 8),
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = n == "20" ? Color.FromArgb(215, 215, 215) : Color.White,
-                    Font = new Font("Segoe UI", 9.5f),
-                    Cursor = Cursors.Hand
-                };
-                b.FlatAppearance.BorderSize = 0;
-                pnlFooter.Controls.Add(b);
-                x += 50;
-            }
+                using var pen = new Pen(BorderGray, 1);
+                ev.Graphics.DrawLine(pen, 0, 0, pnlFooter.Width, 0);
+            };
 
             lblPageInfo = new Label
             {
-                Text = "Page 1 of 1 (0 items)",
-                ForeColor = Color.Gray,
+                Text = "Total: 0 items",
+                ForeColor = Color.FromArgb(100, 100, 100),
                 Font = new Font("Segoe UI", 9.5f),
                 AutoSize = true
             };
             pnlFooter.Controls.Add(lblPageInfo);
-            pnlFooter.Resize += (s, ev) => lblPageInfo.Location = new Point(pnlFooter.Width - lblPageInfo.Width - 20, 18);
-            lblPageInfo.Location = new Point(pnlFooter.Width - lblPageInfo.Width - 20, 18);
+            void RepositionFooter()
+            {
+                lblPageInfo.Location = new Point(pnlFooter.Width - lblPageInfo.Width - 20, (pnlFooter.Height - lblPageInfo.Height) / 2);
+            }
+            pnlFooter.Resize += (s, ev) => RepositionFooter();
+            RepositionFooter();
 
             // ---------- Grid ----------
             pnlGrid = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 0), BackColor = Color.White };
@@ -150,19 +217,22 @@ namespace Resturant_Management.Inventory
         {
             if (pnlToolbar == null) return;
 
-            // vertically centre both items inside the (now shorter) toolbar
+            // vertically centre both items inside the toolbar with clean outside margins
             chkInactive.Location = new Point(20, (pnlToolbar.Height - chkInactive.Height) / 2);
-            txtSearch.Location = new Point(
-                pnlToolbar.Width - txtSearch.Width - 20,
-                (pnlToolbar.Height - txtSearch.Height) / 2);
+            if (pnlSearchBox != null)
+            {
+                pnlSearchBox.Location = new Point(
+                    pnlToolbar.Width - pnlSearchBox.Width - 20,
+                    (pnlToolbar.Height - pnlSearchBox.Height) / 2);
+            }
         }
 
         private void ApplyUIStyle()
         {
             dgvItemMasterData.BackgroundColor = Color.White;
             dgvItemMasterData.BorderStyle = BorderStyle.FixedSingle;
-            dgvItemMasterData.CellBorderStyle = DataGridViewCellBorderStyle.None;
-            dgvItemMasterData.GridColor = BorderGray;
+            dgvItemMasterData.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgvItemMasterData.GridColor = Color.FromArgb(235, 238, 242);
             dgvItemMasterData.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvItemMasterData.AllowUserToAddRows = false;
             dgvItemMasterData.AllowUserToDeleteRows = false;
@@ -173,7 +243,7 @@ namespace Resturant_Management.Inventory
             dgvItemMasterData.EnableHeadersVisualStyles = false;
             dgvItemMasterData.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
             dgvItemMasterData.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            dgvItemMasterData.ColumnHeadersHeight = 38;
+            dgvItemMasterData.ColumnHeadersHeight = 42;
 
             dgvItemMasterData.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
             {
@@ -182,7 +252,8 @@ namespace Resturant_Management.Inventory
                 Font = new Font("Segoe UI", 10f, FontStyle.Bold),
                 Alignment = DataGridViewContentAlignment.MiddleLeft,
                 SelectionBackColor = Color.White,
-                SelectionForeColor = Color.FromArgb(64, 64, 64)
+                SelectionForeColor = Color.FromArgb(64, 64, 64),
+                WrapMode = DataGridViewTriState.False
             };
 
             dgvItemMasterData.DefaultCellStyle = new DataGridViewCellStyle
@@ -192,7 +263,8 @@ namespace Resturant_Management.Inventory
                 Font = new Font("Segoe UI", 10f),
                 Alignment = DataGridViewContentAlignment.MiddleLeft,
                 SelectionBackColor = Color.FromArgb(240, 245, 255),
-                SelectionForeColor = Color.Black
+                SelectionForeColor = Color.Black,
+                WrapMode = DataGridViewTriState.False
             };
         }
 
@@ -200,7 +272,13 @@ namespace Resturant_Management.Inventory
         {
             dgvItemMasterData.Columns.Clear();
 
-            var colEdit = new DataGridViewTextBoxColumn { Name = "colEdit", HeaderText = "Edit", Width = 65 };
+            var colEdit = new DataGridViewTextBoxColumn
+            {
+                Name = "colEdit",
+                HeaderText = "Edit",
+                Width = 60,
+                Resizable = DataGridViewTriState.False
+            };
             colEdit.DefaultCellStyle.ForeColor = Color.FromArgb(0, 114, 206);
             colEdit.DefaultCellStyle.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
             colEdit.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -212,32 +290,50 @@ namespace Resturant_Management.Inventory
                 Name = "colImage",
                 HeaderText = "Image",
                 ImageLayout = DataGridViewImageCellLayout.Zoom,
-                Width = 80
+                Width = 75,
+                Resizable = DataGridViewTriState.False
             });
 
             dgvItemMasterData.Columns.Add("colCode", "Item Code");
             dgvItemMasterData.Columns.Add("colName", "Item Name");
             dgvItemMasterData.Columns.Add("colName2", "Item Name 2");
             dgvItemMasterData.Columns.Add("colUom", "Group UoM");
-            dgvItemMasterData.Columns.Add("colGroup", "Item Group Names");
-            dgvItemMasterData.Columns.Add("colType", "Type");
+            dgvItemMasterData.Columns.Add("colGroup", "Item Group");
             dgvItemMasterData.Columns.Add("colProcess", "Process");
             dgvItemMasterData.Columns.Add("colCreated", "Created");
 
-            dgvItemMasterData.Columns["colCode"].Width = 120;
+            dgvItemMasterData.Columns["colCode"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvItemMasterData.Columns["colCode"].MinimumWidth = 110;
+
             dgvItemMasterData.Columns["colName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dgvItemMasterData.Columns["colName"].MinimumWidth = 160;
+            dgvItemMasterData.Columns["colName"].FillWeight = 50;
             dgvItemMasterData.Columns["colName"].DefaultCellStyle.Font = DbHelper.GetKhmerFont(10F, FontStyle.Regular);
+
             dgvItemMasterData.Columns["colName2"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dgvItemMasterData.Columns["colName2"].MinimumWidth = 140;
+            dgvItemMasterData.Columns["colName2"].FillWeight = 50;
             dgvItemMasterData.Columns["colName2"].DefaultCellStyle.Font = DbHelper.GetKhmerFont(10F, FontStyle.Regular);
-            dgvItemMasterData.Columns["colUom"].Width = 120;
-            dgvItemMasterData.Columns["colGroup"].Width = 150;
-            dgvItemMasterData.Columns["colType"].Width = 90;
-            dgvItemMasterData.Columns["colProcess"].Width = 110;
-            dgvItemMasterData.Columns["colCreated"].Width = 100;
+
+            dgvItemMasterData.Columns["colUom"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvItemMasterData.Columns["colUom"].MinimumWidth = 120;
+
+            dgvItemMasterData.Columns["colGroup"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvItemMasterData.Columns["colGroup"].MinimumWidth = 130;
+
+            dgvItemMasterData.Columns["colProcess"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvItemMasterData.Columns["colProcess"].MinimumWidth = 110;
+
+            dgvItemMasterData.Columns["colCreated"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dgvItemMasterData.Columns["colCreated"].MinimumWidth = 100;
 
             // CellContentClick doesn't fire for plain text columns, so use CellClick
             dgvItemMasterData.CellClick -= dgvItemMasterData_CellClick;
             dgvItemMasterData.CellClick += dgvItemMasterData_CellClick;
+            dgvItemMasterData.CellDoubleClick -= dgvItemMasterData_CellDoubleClick;
+            dgvItemMasterData.CellDoubleClick += dgvItemMasterData_CellDoubleClick;
+            dgvItemMasterData.CellMouseEnter -= dgvItemMasterData_CellMouseEnter;
+            dgvItemMasterData.CellMouseEnter += dgvItemMasterData_CellMouseEnter;
         }
 
         private Image CreatePlaceholderImage()
@@ -283,12 +379,12 @@ SELECT
 FROM dbo.ITEM i
 LEFT JOIN dbo.ITEM_GROUP g ON i.GroupID = g.GroupID
 LEFT JOIN dbo.UOM u ON i.UomID = u.UomID
-WHERE (@ShowInactive = 1 OR i.IsInactive = 0)
+WHERE ISNULL(i.IsInactive, 0) = @ShowInactive
   AND (@Search = '' OR i.ItemCode LIKE @Pattern OR i.ItemName LIKE @Pattern)
 ORDER BY i.ItemID;";
 
                 DataTable dt = DbHelper.ExecuteQuery(sql,
-                    new SqlParameter("@ShowInactive", showInactive),
+                    new SqlParameter("@ShowInactive", showInactive ? 1 : 0),
                     new SqlParameter("@Search", search),
                     new SqlParameter("@Pattern", $"%{search}%"));
 
@@ -309,7 +405,6 @@ ORDER BY i.ItemID;";
                         r["ItemName2"]?.ToString(),
                         r["UomName"]?.ToString(),
                         r["GroupName"]?.ToString(),
-                        r["Type"]?.ToString(),
                         r["Process"]?.ToString(),
                         r["CreatedDate"]?.ToString()
                     );
@@ -321,32 +416,72 @@ ORDER BY i.ItemID;";
                 MessageBox.Show($"Error loading items: {ex.Message}", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
-            lblPageInfo.Text = $"Page 1 of 1 ({dgvItemMasterData.Rows.Count} items)";
-            lblPageInfo.Location = new Point(pnlFooter.Width - lblPageInfo.Width - 20, 18);
+            // Auto size columns to ensure headers and content are fully visible
+            dgvItemMasterData.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
+            if (dgvItemMasterData.Columns["colName"] != null)
+                dgvItemMasterData.Columns["colName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            if (dgvItemMasterData.Columns["colName2"] != null)
+                dgvItemMasterData.Columns["colName2"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+
+            lblPageInfo.Text = $"Total: {dgvItemMasterData.Rows.Count} items";
+            if (pnlFooter != null)
+                lblPageInfo.Location = new Point(pnlFooter.Width - lblPageInfo.Width - 20, (pnlFooter.Height - lblPageInfo.Height) / 2);
         }
 
         private void dgvItemMasterData_CellClick(object? sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex >= 0 && e.ColumnIndex == dgvItemMasterData.Columns["colEdit"].Index)
             {
-                string? itemCode = dgvItemMasterData.Rows[e.RowIndex].Cells["colCode"].Value?.ToString();
-                if (!string.IsNullOrEmpty(itemCode))
+                OpenUpdateItemForRow(e.RowIndex);
+            }
+        }
+
+        private void dgvItemMasterData_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                OpenUpdateItemForRow(e.RowIndex);
+            }
+        }
+
+        private void dgvItemMasterData_CellMouseEnter(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex == dgvItemMasterData.Columns["colEdit"].Index)
+            {
+                dgvItemMasterData.Cursor = Cursors.Hand;
+            }
+            else
+            {
+                dgvItemMasterData.Cursor = Cursors.Default;
+            }
+        }
+
+        private void OpenUpdateItemForRow(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= dgvItemMasterData.Rows.Count) return;
+            string? itemCode = dgvItemMasterData.Rows[rowIndex].Cells["colCode"].Value?.ToString();
+            if (string.IsNullOrEmpty(itemCode) && dgvItemMasterData.Rows[rowIndex].Cells.Count > 2)
+            {
+                itemCode = dgvItemMasterData.Rows[rowIndex].Cells[2].Value?.ToString();
+            }
+
+            if (!string.IsNullOrEmpty(itemCode))
+            {
+                Control? parentContainer = this.Parent;
+                if (parentContainer != null)
                 {
-                    Control? parentContainer = this.Parent;
-                    if (parentContainer != null)
-                    {
-                        parentContainer.Controls.Clear();
-                        UpdateItem updateScreen = new UpdateItem(itemCode) { Dock = DockStyle.Fill };
-                        parentContainer.Controls.Add(updateScreen);
-                        updateScreen.BringToFront();
-                    }
+                    parentContainer.Controls.Clear();
+                    UpdateItem updateScreen = new UpdateItem(itemCode) { Dock = DockStyle.Fill };
+                    parentContainer.Controls.Add(updateScreen);
+                    updateScreen.BringToFront();
+                    updateScreen.LoadItem(itemCode);
                 }
             }
         }
 
-        private void btnCreate_Click(object sender, EventArgs e)
+        private void btnCreate_Click(object? sender, EventArgs e)
         {
-            Control parentContainer = this.Parent;
+            Control? parentContainer = this.Parent;
             if (parentContainer != null)
             {
                 parentContainer.Controls.Clear();
@@ -357,6 +492,11 @@ ORDER BY i.ItemID;";
         }
 
         private void pnlTop_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void dgvItemMasterData_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
 
         }

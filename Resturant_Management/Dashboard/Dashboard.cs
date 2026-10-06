@@ -20,7 +20,6 @@ namespace Resturant_Management
         private Panel mainContentPanel = null!;   // host panel (lives for the whole form)
         private Panel dashboardView = null!;      // dashboard content (built once, reused)
         private Label lblKpiSalesToday = null!;
-        private Label lblKpiPurchaseToday = null!;
         private Label lblKpiAvgSaleAmount = null!;
         private Label lblKpiAvgSaleQty = null!;
         private Chart pieChart = null!;
@@ -28,6 +27,7 @@ namespace Resturant_Management
         private bool isInventoryExpanded = false;
         private bool isTableExpanded = false;
         private const int RowH = 52;
+        private const int HeaderH = 80;
         private const int SidebarExpandedW = 233;
         private const int SidebarCollapsedW = 60;
 
@@ -35,6 +35,13 @@ namespace Resturant_Management
         private IconPictureBox collapseBtn = null!;
         private Panel pnlSearch = null!;
         private Image? logoImage;
+        private IconPictureBox? inventoryChevron;
+        private IconPictureBox? tableChevron;
+
+        private Label lblUserName = null!;
+        private Label lblUserRole = null!;
+        private Guna2Button btnLogout = null!;
+        private Guna2Button btnExitApp = null!;
 
         private class ButtonBackup
         {
@@ -103,6 +110,9 @@ namespace Resturant_Management
 
         private void dashboard_Load_1(object sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             try
             {
                 sidebar.AutoScroll = true;
@@ -115,9 +125,9 @@ namespace Resturant_Management
                 if (PictureLogo != null)
                 {
                     PictureLogo.SizeMode = PictureBoxSizeMode.Zoom;
-                    PictureLogo.Height = 100;
+                    PictureLogo.Height = HeaderH;
                     PictureLogo.Dock = DockStyle.Top;
-                    PictureLogo.BackColor = Color.DeepSkyBlue;
+                    PictureLogo.BackColor = Color.FromArgb(191, 234, 255);
                 }
 
                 btndashboard.Dock = DockStyle.Top;
@@ -154,7 +164,7 @@ namespace Resturant_Management
                         btn.TextAlign = HorizontalAlignment.Left;
                         btn.ImageAlign = HorizontalAlignment.Left;
                         btn.ImageOffset = new Point(15, 0);
-                        btn.TextOffset = new Point(25, 0);
+                        btn.TextOffset = new Point(48, 0);
                     }
                 }
 
@@ -169,7 +179,7 @@ namespace Resturant_Management
                         btn.TextAlign = HorizontalAlignment.Left;
                         btn.ImageAlign = HorizontalAlignment.Left;
                         btn.ImageOffset = new Point(35, 0);
-                        btn.TextOffset = new Point(45, 0);
+                        btn.TextOffset = new Point(68, 0);
                         btn.Visible = false;
                     }
                 }
@@ -183,6 +193,14 @@ namespace Resturant_Management
 
                 Inventory.Height = RowH;
 
+                if (!UserSession.CanManageTables)
+                {
+                    btnTable.Visible = false;
+                    btnTableGroup.Visible = false;
+                    btnTableName.Visible = false;
+                }
+
+                SetupHeaderUserProfile();
                 StyleSidebar();
                 InitializeDashboardView();
             }
@@ -205,11 +223,10 @@ namespace Resturant_Management
             logoImage = PictureLogo.Image;
 
             //  Header button ----
-            // Same height as the top header bar so both bottom edges line up
-            // (the header is auto-scaled with the system font/DPI, so read its real height)
-            PictureLogo.Height = header.Height;
+            PictureLogo.Height = HeaderH;
             PictureLogo.BackColor = Color.FromArgb(191, 234, 255);
 
+            int btnY = (HeaderH - 26) / 2;
             collapseBtn = new IconPictureBox
             {
                 IconChar = IconChar.ChevronLeft,
@@ -221,12 +238,7 @@ namespace Resturant_Management
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left
             };
-            collapseBtn.Location = new Point(SidebarExpandedW - 40, CollapseBtnTop());
-            header.SizeChanged += (s, e) =>
-            {
-                PictureLogo.Height = header.Height;
-                collapseBtn.Top = CollapseBtnTop();
-            };
+            collapseBtn.Location = new Point(SidebarExpandedW - 40, btnY);
             using (var gp = new GraphicsPath())
             {
                 gp.AddEllipse(0, 0, 26, 26);
@@ -274,8 +286,11 @@ namespace Resturant_Management
                 b.HoverState.FillColor = hover;
             }
 
-            void AddChevron(Guna2Button b, int x)
+            IconPictureBox AddChevron(Guna2Button b, int x)
             {
+                foreach (var old in b.Controls.OfType<IconPictureBox>().ToList())
+                    b.Controls.Remove(old);
+
                 var ch = new IconPictureBox
                 {
                     IconChar = IconChar.ChevronRight,
@@ -289,6 +304,7 @@ namespace Resturant_Management
                 };
                 ch.Click += (s, e) => b.PerformClick();
                 b.Controls.Add(ch);
+                return ch;
             }
 
             foreach (var b in new[] { btndashboard, btnPOS, btninventory, btnReport,
@@ -301,14 +317,14 @@ namespace Resturant_Management
             foreach (var b in new[] { btnPOS, btninventory, btnReport })
                 StyleBtn(b, 10.5F);
 
-            AddChevron(btninventory, 14);      // only Inventory has a dropdown
+            inventoryChevron = AddChevron(btninventory, 14);      // only Inventory has a dropdown
 
             Inventory.FillColor = Color.White;
 
             // Sub rows under Inventory
             foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnTable, btnTableGroup, btnTableName })
                 StyleBtn(b, 10F);
-            AddChevron(btnTable, 38);          // Table also has a dropdown
+            tableChevron = AddChevron(btnTable, 28);          // Table also has a dropdown placed to the left of "Table"
 
             // Remember the original text/icon so we can switch back after collapsing
             foreach (var b in new[] { btndashboard, btnPOS, btninventory, btnReport })
@@ -332,9 +348,6 @@ namespace Resturant_Management
             SetSidebarCollapsed(false);
         }
 
-        // Vertically centre the round collapse button inside the logo header
-        private int CollapseBtnTop() => Math.Max(0, (PictureLogo.Height - collapseBtn.Height) / 2);
-
         private void SetSidebarCollapsed(bool collapse)
         {
             sidebarCollapsed = collapse;
@@ -345,16 +358,25 @@ namespace Resturant_Management
             // header
             PictureLogo.Image = collapse ? null : logoImage;
             collapseBtn.IconChar = collapse ? IconChar.ChevronRight : IconChar.ChevronLeft;
+            int btnY = (HeaderH - collapseBtn.Height) / 2;
             collapseBtn.Location = collapse
-                ? new Point((SidebarCollapsedW - collapseBtn.Width) / 2, CollapseBtnTop())
-                : new Point(SidebarExpandedW - 40, CollapseBtnTop());
+                ? new Point((SidebarCollapsedW - collapseBtn.Width) / 2, btnY)
+                : new Point(SidebarExpandedW - 40, btnY);
 
             // search box
             pnlSearch.Visible = !collapse;
 
             // dropdown arrows
-            foreach (var ic in btninventory.Controls.OfType<IconPictureBox>()) ic.Visible = !collapse;
-            foreach (var ic in btnTable.Controls.OfType<IconPictureBox>()) ic.Visible = !collapse;
+            if (inventoryChevron != null)
+            {
+                inventoryChevron.Visible = !collapse;
+                inventoryChevron.IconChar = IconChar.ChevronRight;
+            }
+            if (tableChevron != null)
+            {
+                tableChevron.Visible = !collapse;
+                tableChevron.IconChar = IconChar.ChevronRight;
+            }
 
             // Inventory dropdown always starts closed after a switch
             isInventoryExpanded = false;
@@ -365,7 +387,7 @@ namespace Resturant_Management
             btnTableName.Visible = false;
             btnItemGroup.Visible = !collapse;
             btnItemMasterData.Visible = !collapse;
-            btnTable.Visible = !collapse;
+            btnTable.Visible = !collapse && UserSession.CanManageTables;
 
             // top-level buttons
             Guna2Button[] topButtons = { btndashboard, btnPOS, btninventory, btnReport };
@@ -400,12 +422,12 @@ namespace Resturant_Management
             foreach (var b in new[] { btnItemGroup, btnItemMasterData, btnTable })
             {
                 b.ImageOffset = new Point(15, 0);
-                b.TextOffset = new Point(25, 0);
+                b.TextOffset = new Point(48, 0);
             }
             foreach (var b in new[] { btnTableGroup, btnTableName })
             {
                 b.ImageOffset = new Point(35, 0);
-                b.TextOffset = new Point(45, 0);
+                b.TextOffset = new Point(68, 0);
             }
 
             sidebar.ResumeLayout();
@@ -485,15 +507,19 @@ namespace Resturant_Management
             {
                 Inventory.Height = RowH;
                 isInventoryExpanded = false;
+                if (inventoryChevron != null) inventoryChevron.IconChar = IconChar.ChevronRight;
 
                 isTableExpanded = false;
+                if (tableChevron != null) tableChevron.IconChar = IconChar.ChevronRight;
                 if (btnTableGroup != null) btnTableGroup.Visible = false;
                 if (btnTableName != null) btnTableName.Visible = false;
             }
             else
             {
-                Inventory.Height = RowH * 4;
+                int subItemCount = UserSession.CanManageTables ? (isTableExpanded ? 5 : 3) : 2;
+                Inventory.Height = RowH * (1 + subItemCount);
                 isInventoryExpanded = true;
+                if (inventoryChevron != null) inventoryChevron.IconChar = IconChar.ChevronDown;
             }
 
             if (PicProfile != null)
@@ -511,6 +537,7 @@ namespace Resturant_Management
                 if (btnTableGroup != null) btnTableGroup.Visible = false;
                 if (btnTableName != null) btnTableName.Visible = false;
                 isTableExpanded = false;
+                if (tableChevron != null) tableChevron.IconChar = IconChar.ChevronRight;
 
                 Inventory.Height = RowH * 4;
             }
@@ -519,6 +546,7 @@ namespace Resturant_Management
                 if (btnTableGroup != null) btnTableGroup.Visible = true;
                 if (btnTableName != null) btnTableName.Visible = true;
                 isTableExpanded = true;
+                if (tableChevron != null) tableChevron.IconChar = IconChar.ChevronDown;
 
                 Inventory.Height = RowH * 6;      // header + 3 subs + 2 table subs
             }
@@ -582,17 +610,16 @@ namespace Resturant_Management
             TableLayoutPanel kpiGrid = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 4,
+                ColumnCount = 3,
                 RowCount = 1,
                 Margin = new Padding(0, 0, 0, 10)
             };
-            for (int i = 0; i < 4; i++)
-                kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            for (int i = 0; i < 3; i++)
+                kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
 
             kpiGrid.Controls.Add(CreateKpiCard("0.00 USD", "SALES TODAY", Color.FromArgb(0, 122, 204), out lblKpiSalesToday), 0, 0);
-            kpiGrid.Controls.Add(CreateKpiCard("0.00 USD", "PURCHASE TODAY", Color.FromArgb(0, 122, 204), out lblKpiPurchaseToday), 1, 0);
-            kpiGrid.Controls.Add(CreateKpiCard("0.00 USD", "AVERAGE SALES AMOUNT", Color.FromArgb(0, 122, 204), out lblKpiAvgSaleAmount), 2, 0);
-            kpiGrid.Controls.Add(CreateKpiCard("0.00", "AVERAGE SALES QTY", Color.FromArgb(0, 122, 204), out lblKpiAvgSaleQty), 3, 0);
+            kpiGrid.Controls.Add(CreateKpiCard("0.00 USD", "AVERAGE SALES AMOUNT", Color.FromArgb(0, 122, 204), out lblKpiAvgSaleAmount), 1, 0);
+            kpiGrid.Controls.Add(CreateKpiCard("0.00", "AVERAGE SALES QTY", Color.FromArgb(0, 122, 204), out lblKpiAvgSaleQty), 2, 0);
 
             mainGrid.Controls.Add(kpiGrid, 0, 1);
 
@@ -632,17 +659,7 @@ WHERE Status = 'Paid' AND CAST(PostingDate AS date) = CAST(SYSDATETIME() AS date
                 decimal salesUSD = salesKHR / 4000m;
                 if (lblKpiSalesToday != null) lblKpiSalesToday.Text = $"{salesUSD:N2} USD";
 
-                // 2. Purchase Today
-                string sqlPurchase = @"
-SELECT ISNULL(SUM(Qty * ISNULL(UnitCost, 0)), 0) 
-FROM dbo.STOCK_MOVEMENT 
-WHERE MovementType = 'Purchase' AND CAST(CreatedAt AS date) = CAST(SYSDATETIME() AS date);";
-                object? resPurch = DbHelper.ExecuteScalar(sqlPurchase);
-                decimal purch = resPurch != null && resPurch != DBNull.Value ? Convert.ToDecimal(resPurch) : 0m;
-                decimal purchUSD = purch / 4000m;
-                if (lblKpiPurchaseToday != null) lblKpiPurchaseToday.Text = $"{purchUSD:N2} USD";
-
-                // 3. Average Sales Amount
+                // 2. Average Sales Amount
                 string sqlAvgAmount = @"
 SELECT ISNULL(AVG(GrandTotal), 0) 
 FROM dbo.SALE_ORDER 
@@ -652,7 +669,7 @@ WHERE Status = 'Paid' AND CAST(PostingDate AS date) = CAST(SYSDATETIME() AS date
                 decimal avgAmtUSD = avgAmt / 4000m;
                 if (lblKpiAvgSaleAmount != null) lblKpiAvgSaleAmount.Text = $"{avgAmtUSD:N2} USD";
 
-                // 4. Average Sales Qty
+                // 3. Average Sales Qty
                 string sqlAvgQty = @"
 SELECT ISNULL(AVG(oi.Qty), 0)
 FROM dbo.SALE_ORDER_ITEM oi
@@ -662,7 +679,7 @@ WHERE o.Status = 'Paid' AND CAST(o.PostingDate AS date) = CAST(SYSDATETIME() AS 
                 decimal avgQty = resAvgQty != null && resAvgQty != DBNull.Value ? Convert.ToDecimal(resAvgQty) : 0m;
                 if (lblKpiAvgSaleQty != null) lblKpiAvgSaleQty.Text = $"{avgQty:N2}";
 
-                // 5. Pie Chart: vw_SaleByGroup
+                // 4. Pie Chart: vw_SaleByGroup
                 if (pieChart != null && pieChart.Series.Count > 0)
                 {
                     var series = pieChart.Series[0];
@@ -688,7 +705,7 @@ WHERE o.Status = 'Paid' AND CAST(o.PostingDate AS date) = CAST(SYSDATETIME() AS 
                     }
                 }
 
-                // 6. Bar Chart: Monthly sales performance for current year
+                // 5. Bar Chart: Monthly sales performance for current year
                 if (barChart != null && barChart.Series.Count > 0)
                 {
                     var series = barChart.Series[0];
@@ -794,7 +811,7 @@ GROUP BY MONTH(PostingDate);";
                 IsValueShownAsLabel = false // Hide zero labels over empty bars
             };
 
-            string[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep" };
+            string[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
             // Render empty month ticks cleanly across X-axis without label clutter
             for (int i = 0; i < months.Length; i++)
@@ -848,6 +865,185 @@ GROUP BY MONTH(PostingDate);";
             return chart;
         }
 
+        private void SetupHeaderUserProfile()
+        {
+            if (header == null) return;
+
+            header.Controls.Clear();
+            header.Height = HeaderH;
+
+            label1 = new Label
+            {
+                Text = "Restaurant Management System",
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                BackColor = Color.Transparent
+            };
+            header.Controls.Add(label1);
+
+            FlowLayoutPanel pnlUser = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, (HeaderH - 52) / 2, 20, 0)
+            };
+
+            int nameWidth = TextRenderer.MeasureText(
+                string.IsNullOrEmpty(UserSession.FullName) ? UserSession.Username : UserSession.FullName,
+                new Font("Segoe UI", 10.5F, FontStyle.Bold)).Width;
+            int textWidth = Math.Max(200, nameWidth + 24);
+
+            Panel pnlText = new Panel
+            {
+                Width = textWidth,
+                Height = 52,
+                BackColor = Color.Transparent
+            };
+
+            lblUserName = new Label
+            {
+                Text = string.IsNullOrEmpty(UserSession.FullName) ? UserSession.Username : UserSession.FullName,
+                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
+                ForeColor = Color.White,
+                Dock = DockStyle.Top,
+                Height = 24,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
+            lblUserRole = new Label
+            {
+                Text = $"Role: {UserSession.Role.ToUpper()}",
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(225, 245, 255),
+                Dock = DockStyle.Bottom,
+                Height = 22,
+                TextAlign = ContentAlignment.TopRight
+            };
+
+            pnlText.Controls.Add(lblUserRole);
+            pnlText.Controls.Add(lblUserName);
+
+            if (PicProfile == null)
+            {
+                PicProfile = new Guna.UI2.WinForms.Guna2CirclePictureBox();
+            }
+            PicProfile.Size = new Size(46, 46);
+            PicProfile.Margin = new Padding(8, 3, 12, 0);
+            PicProfile.Cursor = Cursors.Hand;
+            PicProfile.SizeMode = PictureBoxSizeMode.Zoom;
+            PicProfile.BackColor = Color.Transparent;
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                path.AddEllipse(0, 0, PicProfile.Width, PicProfile.Height);
+                PicProfile.Region = new Region(path);
+            }
+
+            // Load and display user profile avatar
+            string? profileImgPath = UserSession.ProfileImagePath;
+            if (string.IsNullOrEmpty(profileImgPath) && UserSession.UserID > 0)
+            {
+                try
+                {
+                    DataTable dtUser = DbHelper.ExecuteQuery(
+                        "SELECT ProfileImagePath FROM dbo.APP_USER WHERE UserID = @UID",
+                        new SqlParameter("@UID", UserSession.UserID));
+                    if (dtUser.Rows.Count > 0)
+                    {
+                        profileImgPath = dtUser.Rows[0]["ProfileImagePath"]?.ToString();
+                        UserSession.ProfileImagePath = profileImgPath;
+                    }
+                }
+                catch { }
+            }
+
+            var (avatarImg, originalImg) = LoadUserAvatar(profileImgPath, 128);
+            if (avatarImg != null)
+            {
+                PicProfile.Image = avatarImg;
+                PicProfile.Tag = originalImg;
+            }
+            else
+            {
+                PicProfile.Image = CreateDefaultAvatar(46);
+            }
+
+            btnLogout = new Guna2Button
+            {
+                Text = "Logout",
+                Size = new Size(100, 36),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(239, 83, 80),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                TextAlign = HorizontalAlignment.Center,
+                Margin = new Padding(6, 8, 8, 0),
+                Cursor = Cursors.Hand
+            };
+            btnLogout.HoverState.FillColor = Color.FromArgb(211, 47, 47);
+            btnLogout.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show("Are you sure you want to log out?", "Logout Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    UserSession.Logout();
+                    this.Close();
+                }
+            };
+
+            btnExitApp = new Guna2Button
+            {
+                Text = "✕",
+                Size = new Size(40, 36),
+                BorderRadius = 6,
+                FillColor = Color.FromArgb(55, 71, 79),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Margin = new Padding(4, 8, 8, 0),
+                Cursor = Cursors.Hand
+            };
+            btnExitApp.HoverState.FillColor = Color.FromArgb(198, 40, 40);
+            btnExitApp.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show("Are you sure you want to exit the system?", "Exit Application", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    Application.Exit();
+                }
+            };
+
+            pnlUser.Controls.Add(pnlText);
+            pnlUser.Controls.Add(PicProfile);
+            pnlUser.Controls.Add(btnLogout);
+            pnlUser.Controls.Add(btnExitApp);
+
+            header.Controls.Add(pnlUser);
+
+            void CenterTitle()
+            {
+                if (label1 == null || header == null) return;
+                int titleW = label1.PreferredWidth;
+                int idealX = (header.ClientSize.Width - titleW) / 2;
+                int idealY = (header.ClientSize.Height - label1.PreferredHeight) / 2;
+
+                if (pnlUser != null && pnlUser.Visible && pnlUser.Left > 0 && idealX + titleW > pnlUser.Left - 10)
+                {
+                    idealX = Math.Max(10, pnlUser.Left - titleW - 10);
+                }
+
+                label1.Location = new Point(Math.Max(10, idealX), Math.Max(0, idealY));
+                label1.BringToFront();
+            }
+
+            header.Resize += (s, e) => CenterTitle();
+            pnlUser.Resize += (s, e) => CenterTitle();
+            CenterTitle();
+        }
+
         // ------------------------------------------------------------------
         //  Misc handlers
         // ------------------------------------------------------------------
@@ -873,25 +1069,140 @@ GROUP BY MONTH(PostingDate);";
 
         private void PicProfile_Click(object sender, EventArgs e)
         {
-            if (PicProfile.Image != null)
+            Image? imgToDisplay = PicProfile.Tag as Image ?? PicProfile.Image;
+            if (imgToDisplay != null)
             {
                 Form imageViewer = new Form
                 {
-                    Text = "Profile Picture",
-                    Size = new Size(400, 400),
-                    StartPosition = FormStartPosition.CenterParent
+                    Text = $"{UserSession.FullName} - Profile Picture",
+                    Size = new Size(460, 560),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    BackColor = Color.White
                 };
 
                 PictureBox pb = new PictureBox
                 {
-                    Image = PicProfile.Image,
+                    Image = imgToDisplay,
                     Dock = DockStyle.Fill,
-                    SizeMode = PictureBoxSizeMode.Zoom
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Padding = new Padding(10)
                 };
 
                 imageViewer.Controls.Add(pb);
-                imageViewer.ShowDialog();
+                imageViewer.ShowDialog(this);
             }
+        }
+
+        private (Image? avatar, Image? original) LoadUserAvatar(string? path, int size)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return (null, null);
+
+            try
+            {
+                string resolvedPath = "";
+                if (System.IO.File.Exists(path))
+                {
+                    resolvedPath = path;
+                }
+                else
+                {
+                    string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string combined = System.IO.Path.Combine(baseDir, path);
+                    if (System.IO.File.Exists(combined))
+                    {
+                        resolvedPath = combined;
+                    }
+                    else
+                    {
+                        string fileName = System.IO.Path.GetFileName(path);
+                        string resPath = System.IO.Path.Combine(baseDir, "Resources", fileName);
+                        if (System.IO.File.Exists(resPath))
+                        {
+                            resolvedPath = resPath;
+                        }
+                        else
+                        {
+                            string projectRes = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, @"..\..\..\Resources", fileName));
+                            if (System.IO.File.Exists(projectRes))
+                            {
+                                resolvedPath = projectRes;
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
+                {
+                    byte[] bytes = System.IO.File.ReadAllBytes(resolvedPath);
+                    using var ms = new System.IO.MemoryStream(bytes);
+                    using Image original = Image.FromStream(ms);
+                    Bitmap originalCopy = new Bitmap(original);
+                    Bitmap avatar = CropToCircleAvatar(originalCopy, size);
+                    return (avatar, originalCopy);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load profile avatar: {ex.Message}");
+            }
+
+            return (null, null);
+        }
+
+        private static Bitmap CropToCircleAvatar(Image src, int size)
+        {
+            Bitmap result = new Bitmap(size, size);
+            using (Graphics g = Graphics.FromImage(result))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                int srcDim = Math.Min(src.Width, src.Height);
+                int srcX = (src.Width - srcDim) / 2;
+                int srcY = 0;
+                if (src.Height > src.Width)
+                {
+                    // Framing the face nicely in the upper portion
+                    srcY = Math.Max(0, (src.Height - srcDim) / 5);
+                }
+                else
+                {
+                    srcY = (src.Height - srcDim) / 2;
+                }
+
+                using (GraphicsPath path = new GraphicsPath())
+                {
+                    path.AddEllipse(0, 0, size, size);
+                    g.SetClip(path);
+                    g.DrawImage(src, new Rectangle(0, 0, size, size), srcX, srcY, srcDim, srcDim, GraphicsUnit.Pixel);
+                }
+            }
+            return result;
+        }
+
+        private static Bitmap CreateDefaultAvatar(int size)
+        {
+            Bitmap bmp = new Bitmap(size, size);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var brush = new SolidBrush(Color.FromArgb(220, 230, 242)))
+                    g.FillEllipse(brush, 0, 0, size, size);
+
+                string initial = !string.IsNullOrEmpty(UserSession.FullName)
+                    ? UserSession.FullName.Substring(0, 1).ToUpper()
+                    : (!string.IsNullOrEmpty(UserSession.Username) ? UserSession.Username.Substring(0, 1).ToUpper() : "U");
+
+                using var font = new Font("Segoe UI", size * 0.42f, FontStyle.Bold);
+                using var textBrush = new SolidBrush(Color.FromArgb(41, 128, 185));
+                var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(initial, font, textBrush, new RectangleF(0, 0, size, size), sf);
+            }
+            return bmp;
         }
 
         private void btnReport_Click(object sender, EventArgs e)

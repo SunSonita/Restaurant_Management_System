@@ -61,10 +61,11 @@
             guna2Pan.Controls.Add(panelInformationItem);
             guna2Pan.Controls.Add(lbCodeItem);
             guna2Pan.CustomizableEdges = customizableEdges7;
-            guna2Pan.Location = new Point(44, 25);
+            guna2Pan.Location = new Point(55, 31);
+            guna2Pan.Margin = new Padding(4, 4, 4, 4);
             guna2Pan.Name = "guna2Pan";
             guna2Pan.ShadowDecoration.CustomizableEdges = customizableEdges8;
-            guna2Pan.Size = new Size(1318, 334);
+            guna2Pan.Size = new Size(1648, 418);
             guna2Pan.TabIndex = 3;
             // 
             // panelInformationItem
@@ -76,11 +77,12 @@
             panelInformationItem.Controls.Add(txtName);
             panelInformationItem.Controls.Add(txtCode);
             panelInformationItem.FillColor = Color.White;
-            panelInformationItem.Location = new Point(20, 63);
+            panelInformationItem.Location = new Point(25, 79);
+            panelInformationItem.Margin = new Padding(4, 4, 4, 4);
             panelInformationItem.Name = "panelInformationItem";
             panelInformationItem.Radius = 8;
             panelInformationItem.ShadowColor = Color.Gray;
-            panelInformationItem.Size = new Size(1272, 229);
+            panelInformationItem.Size = new Size(1590, 286);
             panelInformationItem.TabIndex = 26;
             // 
             // checkVisible
@@ -92,9 +94,10 @@
             checkVisible.CheckedState.FillColor = Color.FromArgb(94, 148, 255);
             checkVisible.Font = new Font("Segoe UI", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             checkVisible.ForeColor = Color.DarkBlue;
-            checkVisible.Location = new Point(16, 180);
+            checkVisible.Location = new Point(20, 225);
+            checkVisible.Margin = new Padding(4, 4, 4, 4);
             checkVisible.Name = "checkVisible";
-            checkVisible.Size = new Size(81, 27);
+            checkVisible.Size = new Size(99, 34);
             checkVisible.TabIndex = 31;
             checkVisible.Text = "Visible";
             checkVisible.UncheckedState.BorderColor = Color.FromArgb(125, 137, 149);
@@ -105,9 +108,10 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(511, 187);
+            label1.Location = new Point(639, 234);
+            label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(155, 20);
+            label1.Size = new Size(186, 25);
             label1.TabIndex = 30;
             label1.Text = "Click to choose image";
             // 
@@ -118,10 +122,11 @@
             PicItem.BorderStyle = BorderStyle.FixedSingle;
             PicItem.CustomizableEdges = customizableEdges1;
             PicItem.ImageRotate = 0F;
-            PicItem.Location = new Point(489, 23);
+            PicItem.Location = new Point(611, 29);
+            PicItem.Margin = new Padding(4, 4, 4, 4);
             PicItem.Name = "PicItem";
             PicItem.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            PicItem.Size = new Size(200, 152);
+            PicItem.Size = new Size(250, 190);
             PicItem.SizeMode = PictureBoxSizeMode.StretchImage;
             PicItem.TabIndex = 29;
             PicItem.TabStop = false;
@@ -136,15 +141,16 @@
             txtName.DisabledState.ForeColor = Color.FromArgb(138, 138, 138);
             txtName.DisabledState.PlaceholderForeColor = Color.FromArgb(138, 138, 138);
             txtName.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtName.Font = new Font("Segoe UI", 9F);
+            txtName.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            txtName.ForeColor = Color.Black;
             txtName.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtName.Location = new Point(16, 87);
-            txtName.Margin = new Padding(3, 4, 3, 4);
+            txtName.Location = new Point(22, 122);
+            txtName.Margin = new Padding(4, 6, 4, 6);
             txtName.Name = "txtName";
             txtName.PlaceholderText = "Name";
             txtName.SelectedText = "";
             txtName.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            txtName.Size = new Size(255, 48);
+            txtName.Size = new Size(351, 67);
             txtName.TabIndex = 24;
             // 
             // txtCode
@@ -157,15 +163,16 @@
             txtCode.DisabledState.ForeColor = Color.FromArgb(138, 138, 138);
             txtCode.DisabledState.PlaceholderForeColor = Color.FromArgb(138, 138, 138);
             txtCode.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtCode.Font = new Font("Segoe UI", 9F);
+            txtCode.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            txtCode.ForeColor = Color.Black;
             txtCode.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtCode.Location = new Point(16, 23);
-            txtCode.Margin = new Padding(3, 4, 3, 4);
+            txtCode.Location = new Point(22, 32);
+            txtCode.Margin = new Padding(4, 6, 4, 6);
             txtCode.Name = "txtCode";
             txtCode.PlaceholderText = "Code";
             txtCode.SelectedText = "";
             txtCode.ShadowDecoration.CustomizableEdges = customizableEdges6;
-            txtCode.Size = new Size(255, 48);
+            txtCode.Size = new Size(351, 67);
             txtCode.TabIndex = 22;
             // 
             // lbCodeItem
@@ -174,9 +181,10 @@
             lbCodeItem.BackColor = Color.White;
             lbCodeItem.Font = new Font("Segoe UI", 10.8F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lbCodeItem.ForeColor = Color.Navy;
-            lbCodeItem.Location = new Point(20, 17);
+            lbCodeItem.Location = new Point(25, 21);
+            lbCodeItem.Margin = new Padding(4, 0, 4, 0);
             lbCodeItem.Name = "lbCodeItem";
-            lbCodeItem.Size = new Size(78, 25);
+            lbCodeItem.Size = new Size(93, 30);
             lbCodeItem.TabIndex = 0;
             lbCodeItem.Text = "General";
             // 
@@ -191,10 +199,11 @@
             btnBack.FillColor = Color.Orange;
             btnBack.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnBack.ForeColor = Color.White;
-            btnBack.Location = new Point(167, 653);
+            btnBack.Location = new Point(209, 816);
+            btnBack.Margin = new Padding(4, 4, 4, 4);
             btnBack.Name = "btnBack";
             btnBack.ShadowDecoration.CustomizableEdges = customizableEdges10;
-            btnBack.Size = new Size(86, 39);
+            btnBack.Size = new Size(108, 49);
             btnBack.TabIndex = 23;
             btnBack.Text = "Back";
             // 
@@ -209,23 +218,25 @@
             btnSave.FillColor = Color.Navy;
             btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnSave.ForeColor = Color.White;
-            btnSave.Location = new Point(44, 653);
+            btnSave.Location = new Point(55, 816);
+            btnSave.Margin = new Padding(4, 4, 4, 4);
             btnSave.Name = "btnSave";
             btnSave.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            btnSave.Size = new Size(86, 39);
+            btnSave.Size = new Size(108, 49);
             btnSave.TabIndex = 22;
             btnSave.Text = "Save";
             // 
             // CreateGroup
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             Controls.Add(guna2Pan);
             Controls.Add(btnSave);
             Controls.Add(btnBack);
+            Margin = new Padding(4, 4, 4, 4);
             Name = "CreateGroup";
-            Size = new Size(1858, 788);
+            Size = new Size(2322, 985);
             Load += CreateGroup_Load;
             guna2Pan.ResumeLayout(false);
             guna2Pan.PerformLayout();

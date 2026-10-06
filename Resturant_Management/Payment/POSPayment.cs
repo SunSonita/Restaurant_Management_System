@@ -26,6 +26,24 @@ namespace Resturant_Management.Payment
         public Guna2Button btnBack = null!;
         public Guna2Button btnPay = null!;
 
+        private string _invoiceNo = "";
+        public string InvoiceNo
+        {
+            get => _invoiceNo;
+            set
+            {
+                _invoiceNo = value;
+                if (btnCheckoutHeader != null)
+                {
+                    string title = string.IsNullOrEmpty(value) ? "Checkout" : $"Checkout — {value}";
+                    btnCheckoutHeader.Text = title;
+                    Font checkoutFont = new Font("Segoe UI", 12.5F, FontStyle.Bold);
+                    int checkoutWidth = TextRenderer.MeasureText(title, checkoutFont).Width + 40;
+                    btnCheckoutHeader.Width = Math.Max(140, checkoutWidth);
+                }
+            }
+        }
+
         // Layout helpers
         private Panel pnlHeader = null!;
         private Panel pnlBody = null!;

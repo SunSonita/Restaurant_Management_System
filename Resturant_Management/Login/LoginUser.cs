@@ -13,6 +13,7 @@ namespace Resturant_Management.Login
             InitializeComponent();
             btnSigin.Click += BtnSigin_Click;
             txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnSigin_Click(s, e); };
+            txtUsername.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) txtPassword.Focus(); };
         }
 
         private void BtnSigin_Click(object? sender, EventArgs e)
@@ -20,15 +21,23 @@ namespace Resturant_Management.Login
             string username = txtUsername.Text.Trim();
             string password = txtPassword.Text.Trim();
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(username))
             {
-                MessageBox.Show("Please enter both username and password.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please enter your username.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtUsername.Focus();
+                return;
+            }
+
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("Please enter your password.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtPassword.Focus();
                 return;
             }
 
             try
             {
-                string query = "SELECT UserID, Username, PasswordHash, FullName, Role, IsActive FROM dbo.APP_USER WHERE Username = @Username";
+                string query = "SELECT UserID, Username, PasswordHash, FullName, Role, ProfileImagePath, IsActive FROM dbo.APP_USER WHERE Username = @Username";
                 DataTable dt = DbHelper.ExecuteQuery(query, new SqlParameter("@Username", username));
 
                 if (dt.Rows.Count > 0)
@@ -41,28 +50,45 @@ namespace Resturant_Management.Login
                         return;
                     }
 
+                    int userId = Convert.ToInt32(row["UserID"]);
                     string storedHash = row["PasswordHash"]?.ToString() ?? "";
-                    if (storedHash == password || storedHash == "REPLACE_WITH_HASH" || password == "admin123" || password == "admin")
+
+                    if (SecurityHelper.VerifyPassword(password, storedHash, userId))
                     {
-                        int userId = Convert.ToInt32(row["UserID"]);
                         string fullName = row["FullName"]?.ToString() ?? username;
                         string role = row["Role"]?.ToString() ?? "Cashier";
+                        string? profileImagePath = row["ProfileImagePath"]?.ToString();
 
-                        UserSession.SetUser(userId, username, fullName, role);
+                        UserSession.SetUser(userId, username, fullName, role, profileImagePath);
 
                         this.Hide();
                         dashboard mainDash = new dashboard();
-                        mainDash.FormClosed += (s, args) => this.Close();
+                        mainDash.FormClosed += (s, args) =>
+                        {
+                            if (!UserSession.IsLoggedIn)
+                            {
+                                txtPassword.Clear();
+                                this.Show();
+                            }
+                            else
+                            {
+                                this.Close();
+                            }
+                        };
                         mainDash.Show();
                     }
                     else
                     {
                         MessageBox.Show("Invalid password. Please try again.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        txtPassword.SelectAll();
+                        txtPassword.Focus();
                     }
                 }
                 else
                 {
                     MessageBox.Show("User not found.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    txtUsername.SelectAll();
+                    txtUsername.Focus();
                 }
             }
             catch (Exception ex)
@@ -72,5 +98,10 @@ namespace Resturant_Management.Login
         }
 
         private void label1_Click(object? sender, EventArgs e) { }
+
+        private void txtPassword_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }

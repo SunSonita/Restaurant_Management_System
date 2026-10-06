@@ -1,4 +1,4 @@
-﻿namespace Resturant_Management.Item_Group
+namespace Resturant_Management.Item_Group
 {
     partial class ItemGroupList
     {
@@ -74,7 +74,7 @@
             btnCreate.Location = new Point(1247, 16);
             btnCreate.Name = "btnCreate";
             btnCreate.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            btnCreate.Size = new Size(86, 39);
+            btnCreate.Size = new Size(105, 39);
             btnCreate.TabIndex = 23;
             btnCreate.Text = "Create";
             // 

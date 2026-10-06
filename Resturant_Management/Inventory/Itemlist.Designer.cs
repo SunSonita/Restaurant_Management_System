@@ -37,9 +37,9 @@ namespace Resturant_Management.Inventory
             pnlTop.Controls.Add(txtSearch);
             pnlTop.Dock = DockStyle.Top;
             pnlTop.Location = new Point(0, 0);
-            pnlTop.Margin = new Padding(4, 4, 4, 4);
+            pnlTop.Margin = new Padding(6, 7, 6, 7);
             pnlTop.Name = "pnlTop";
-            pnlTop.Size = new Size(1109, 81);
+            pnlTop.Size = new Size(1584, 135);
             pnlTop.TabIndex = 0;
             pnlTop.Paint += pnlTop_Paint;
             // 
@@ -56,13 +56,15 @@ namespace Resturant_Management.Inventory
             btnCreate.FillColor = Color.FromArgb(10, 10, 200);
             btnCreate.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnCreate.ForeColor = Color.White;
-            btnCreate.Location = new Point(864, 11);
-            btnCreate.Margin = new Padding(3, 2, 3, 2);
+            btnCreate.Location = new Point(1234, 18);
+            btnCreate.Margin = new Padding(4, 3, 4, 3);
             btnCreate.Name = "btnCreate";
             btnCreate.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            btnCreate.Size = new Size(75, 26);
+            btnCreate.Size = new Size(120, 43);
             btnCreate.TabIndex = 2;
             btnCreate.Text = "Create";
+            btnCreate.TextAlign = HorizontalAlignment.Center;
+            btnCreate.TextOffset = new Point(0, 0);
             btnCreate.Click += btnCreate_Click;
             // 
             // lblTitle
@@ -70,10 +72,10 @@ namespace Resturant_Management.Inventory
             lblTitle.AutoSize = true;
             lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             lblTitle.ForeColor = Color.Navy;
-            lblTitle.Location = new Point(18, 11);
-            lblTitle.Margin = new Padding(4, 0, 4, 0);
+            lblTitle.Location = new Point(26, 18);
+            lblTitle.Margin = new Padding(6, 0, 6, 0);
             lblTitle.Name = "lblTitle";
-            lblTitle.Size = new Size(164, 25);
+            lblTitle.Size = new Size(247, 38);
             lblTitle.TabIndex = 0;
             lblTitle.Text = "Item Master Data";
             // 
@@ -82,10 +84,10 @@ namespace Resturant_Management.Inventory
             chkInactive.AutoSize = true;
             chkInactive.Font = new Font("Segoe UI", 9F);
             chkInactive.ForeColor = Color.FromArgb(80, 80, 80);
-            chkInactive.Location = new Point(24, 49);
-            chkInactive.Margin = new Padding(4, 4, 4, 4);
+            chkInactive.Location = new Point(34, 82);
+            chkInactive.Margin = new Padding(6, 7, 6, 7);
             chkInactive.Name = "chkInactive";
-            chkInactive.Size = new Size(67, 19);
+            chkInactive.Size = new Size(98, 29);
             chkInactive.TabIndex = 1;
             chkInactive.Text = "Inactive";
             chkInactive.UseVisualStyleBackColor = true;
@@ -95,35 +97,36 @@ namespace Resturant_Management.Inventory
             txtSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             txtSearch.Font = new Font("Segoe UI", 9F);
             txtSearch.ForeColor = Color.FromArgb(64, 64, 64);
-            txtSearch.Location = new Point(864, 44);
-            txtSearch.Margin = new Padding(4, 4, 4, 4);
+            txtSearch.Location = new Point(1234, 73);
+            txtSearch.Margin = new Padding(6, 7, 6, 7);
             txtSearch.Multiline = true;
             txtSearch.Name = "txtSearch";
             txtSearch.PlaceholderText = "Search...";
-            txtSearch.Size = new Size(227, 31);
+            txtSearch.Size = new Size(323, 49);
             txtSearch.TabIndex = 2;
             // 
             // dgvItemMasterData
             // 
             dgvItemMasterData.ColumnHeadersHeight = 29;
             dgvItemMasterData.Dock = DockStyle.Fill;
-            dgvItemMasterData.Location = new Point(0, 81);
-            dgvItemMasterData.Margin = new Padding(4, 4, 4, 4);
+            dgvItemMasterData.Location = new Point(0, 135);
+            dgvItemMasterData.Margin = new Padding(6, 7, 6, 7);
             dgvItemMasterData.Name = "dgvItemMasterData";
             dgvItemMasterData.RowHeadersWidth = 51;
-            dgvItemMasterData.Size = new Size(1109, 485);
+            dgvItemMasterData.Size = new Size(1584, 808);
             dgvItemMasterData.TabIndex = 1;
+            dgvItemMasterData.CellContentClick += dgvItemMasterData_CellContentClick;
             // 
             // Itemlist
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             Controls.Add(dgvItemMasterData);
             Controls.Add(pnlTop);
-            Margin = new Padding(4, 4, 4, 4);
+            Margin = new Padding(6, 7, 6, 7);
             Name = "Itemlist";
-            Size = new Size(1109, 566);
+            Size = new Size(1584, 943);
             Load += Itemlist_Load;
             pnlTop.ResumeLayout(false);
             pnlTop.PerformLayout();

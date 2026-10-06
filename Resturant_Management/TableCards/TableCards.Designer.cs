@@ -124,10 +124,11 @@
             // 
             Orderheader.Controls.Add(lbtable);
             Orderheader.CustomizableEdges = customizableEdges1;
-            Orderheader.Location = new Point(3, 3);
+            Orderheader.Location = new Point(4, 4);
+            Orderheader.Margin = new Padding(4, 4, 4, 4);
             Orderheader.Name = "Orderheader";
             Orderheader.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            Orderheader.Size = new Size(1392, 52);
+            Orderheader.Size = new Size(1740, 65);
             Orderheader.TabIndex = 0;
             // 
             // lbtable
@@ -135,9 +136,10 @@
             lbtable.AutoSize = true;
             lbtable.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lbtable.ForeColor = Color.Navy;
-            lbtable.Location = new Point(0, 9);
+            lbtable.Location = new Point(0, 11);
+            lbtable.Margin = new Padding(4, 0, 4, 0);
             lbtable.Name = "lbtable";
-            lbtable.Size = new Size(116, 28);
+            lbtable.Size = new Size(139, 32);
             lbtable.TabIndex = 0;
             lbtable.Text = "Main Table";
             // 
@@ -149,10 +151,11 @@
             guna2Panel1.Controls.Add(guna2Panel3);
             guna2Panel1.Controls.Add(panelTable);
             guna2Panel1.CustomizableEdges = customizableEdges35;
-            guna2Panel1.Location = new Point(3, 61);
+            guna2Panel1.Location = new Point(4, 76);
+            guna2Panel1.Margin = new Padding(4, 4, 4, 4);
             guna2Panel1.Name = "guna2Panel1";
             guna2Panel1.ShadowDecoration.CustomizableEdges = customizableEdges36;
-            guna2Panel1.Size = new Size(1370, 731);
+            guna2Panel1.Size = new Size(1712, 914);
             guna2Panel1.TabIndex = 1;
             guna2Panel1.Paint += guna2Panel1_Paint;
             // 
@@ -165,10 +168,11 @@
             guna2Panel12.Controls.Add(guna2Panel13);
             guna2Panel12.Controls.Add(guna2Panel14);
             guna2Panel12.CustomizableEdges = customizableEdges9;
-            guna2Panel12.Location = new Point(1118, 3);
+            guna2Panel12.Location = new Point(1398, 4);
+            guna2Panel12.Margin = new Padding(4, 4, 4, 4);
             guna2Panel12.Name = "guna2Panel12";
             guna2Panel12.ShadowDecoration.CustomizableEdges = customizableEdges10;
-            guna2Panel12.Size = new Size(252, 233);
+            guna2Panel12.Size = new Size(315, 291);
             guna2Panel12.TabIndex = 4;
             // 
             // guna2PictureBox4
@@ -176,10 +180,11 @@
             guna2PictureBox4.CustomizableEdges = customizableEdges3;
             guna2PictureBox4.Image = (Image)resources.GetObject("guna2PictureBox4.Image");
             guna2PictureBox4.ImageRotate = 0F;
-            guna2PictureBox4.Location = new Point(3, 47);
+            guna2PictureBox4.Location = new Point(4, 59);
+            guna2PictureBox4.Margin = new Padding(4, 4, 4, 4);
             guna2PictureBox4.Name = "guna2PictureBox4";
             guna2PictureBox4.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            guna2PictureBox4.Size = new Size(246, 139);
+            guna2PictureBox4.Size = new Size(308, 174);
             guna2PictureBox4.SizeMode = PictureBoxSizeMode.Zoom;
             guna2PictureBox4.TabIndex = 4;
             guna2PictureBox4.TabStop = false;
@@ -189,10 +194,11 @@
             guna2Panel13.BackColor = Color.FromArgb(255, 224, 192);
             guna2Panel13.CustomizableEdges = customizableEdges5;
             guna2Panel13.Dock = DockStyle.Bottom;
-            guna2Panel13.Location = new Point(0, 192);
+            guna2Panel13.Location = new Point(0, 240);
+            guna2Panel13.Margin = new Padding(4, 4, 4, 4);
             guna2Panel13.Name = "guna2Panel13";
             guna2Panel13.ShadowDecoration.CustomizableEdges = customizableEdges6;
-            guna2Panel13.Size = new Size(252, 41);
+            guna2Panel13.Size = new Size(315, 51);
             guna2Panel13.TabIndex = 2;
             // 
             // guna2Panel14
@@ -202,18 +208,20 @@
             guna2Panel14.CustomizableEdges = customizableEdges7;
             guna2Panel14.Dock = DockStyle.Top;
             guna2Panel14.Location = new Point(0, 0);
+            guna2Panel14.Margin = new Padding(4, 4, 4, 4);
             guna2Panel14.Name = "guna2Panel14";
             guna2Panel14.ShadowDecoration.CustomizableEdges = customizableEdges8;
-            guna2Panel14.Size = new Size(252, 41);
+            guna2Panel14.Size = new Size(315, 51);
             guna2Panel14.TabIndex = 1;
             // 
             // label4
             // 
             label4.AutoSize = true;
             label4.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label4.Location = new Point(91, 9);
+            label4.Location = new Point(114, 11);
+            label4.Margin = new Padding(4, 0, 4, 0);
             label4.Name = "label4";
-            label4.Size = new Size(63, 23);
+            label4.Size = new Size(76, 30);
             label4.TabIndex = 1;
             label4.Text = "Table1";
             // 
@@ -226,10 +234,11 @@
             guna2Panel6.Controls.Add(guna2Panel7);
             guna2Panel6.Controls.Add(guna2Panel8);
             guna2Panel6.CustomizableEdges = customizableEdges17;
-            guna2Panel6.Location = new Point(846, 3);
+            guna2Panel6.Location = new Point(1058, 4);
+            guna2Panel6.Margin = new Padding(4, 4, 4, 4);
             guna2Panel6.Name = "guna2Panel6";
             guna2Panel6.ShadowDecoration.CustomizableEdges = customizableEdges18;
-            guna2Panel6.Size = new Size(252, 233);
+            guna2Panel6.Size = new Size(315, 291);
             guna2Panel6.TabIndex = 3;
             // 
             // guna2PictureBox3
@@ -237,10 +246,11 @@
             guna2PictureBox3.CustomizableEdges = customizableEdges11;
             guna2PictureBox3.Image = (Image)resources.GetObject("guna2PictureBox3.Image");
             guna2PictureBox3.ImageRotate = 0F;
-            guna2PictureBox3.Location = new Point(3, 47);
+            guna2PictureBox3.Location = new Point(4, 59);
+            guna2PictureBox3.Margin = new Padding(4, 4, 4, 4);
             guna2PictureBox3.Name = "guna2PictureBox3";
             guna2PictureBox3.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            guna2PictureBox3.Size = new Size(246, 139);
+            guna2PictureBox3.Size = new Size(308, 174);
             guna2PictureBox3.SizeMode = PictureBoxSizeMode.Zoom;
             guna2PictureBox3.TabIndex = 3;
             guna2PictureBox3.TabStop = false;
@@ -250,10 +260,11 @@
             guna2Panel7.BackColor = Color.FromArgb(255, 224, 192);
             guna2Panel7.CustomizableEdges = customizableEdges13;
             guna2Panel7.Dock = DockStyle.Bottom;
-            guna2Panel7.Location = new Point(0, 192);
+            guna2Panel7.Location = new Point(0, 240);
+            guna2Panel7.Margin = new Padding(4, 4, 4, 4);
             guna2Panel7.Name = "guna2Panel7";
             guna2Panel7.ShadowDecoration.CustomizableEdges = customizableEdges14;
-            guna2Panel7.Size = new Size(252, 41);
+            guna2Panel7.Size = new Size(315, 51);
             guna2Panel7.TabIndex = 2;
             // 
             // guna2Panel8
@@ -263,18 +274,20 @@
             guna2Panel8.CustomizableEdges = customizableEdges15;
             guna2Panel8.Dock = DockStyle.Top;
             guna2Panel8.Location = new Point(0, 0);
+            guna2Panel8.Margin = new Padding(4, 4, 4, 4);
             guna2Panel8.Name = "guna2Panel8";
             guna2Panel8.ShadowDecoration.CustomizableEdges = customizableEdges16;
-            guna2Panel8.Size = new Size(252, 41);
+            guna2Panel8.Size = new Size(315, 51);
             guna2Panel8.TabIndex = 1;
             // 
             // label2
             // 
             label2.AutoSize = true;
             label2.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label2.Location = new Point(91, 9);
+            label2.Location = new Point(114, 11);
+            label2.Margin = new Padding(4, 0, 4, 0);
             label2.Name = "label2";
-            label2.Size = new Size(63, 23);
+            label2.Size = new Size(76, 30);
             label2.TabIndex = 1;
             label2.Text = "Table1";
             // 
@@ -287,10 +300,11 @@
             guna2Panel3.Controls.Add(guna2Panel4);
             guna2Panel3.Controls.Add(guna2Panel5);
             guna2Panel3.CustomizableEdges = customizableEdges25;
-            guna2Panel3.Location = new Point(562, 3);
+            guna2Panel3.Location = new Point(702, 4);
+            guna2Panel3.Margin = new Padding(4, 4, 4, 4);
             guna2Panel3.Name = "guna2Panel3";
             guna2Panel3.ShadowDecoration.CustomizableEdges = customizableEdges26;
-            guna2Panel3.Size = new Size(252, 233);
+            guna2Panel3.Size = new Size(315, 291);
             guna2Panel3.TabIndex = 2;
             guna2Panel3.Paint += guna2Panel3_Paint;
             // 
@@ -299,10 +313,11 @@
             guna2PictureBox2.CustomizableEdges = customizableEdges19;
             guna2PictureBox2.Image = (Image)resources.GetObject("guna2PictureBox2.Image");
             guna2PictureBox2.ImageRotate = 0F;
-            guna2PictureBox2.Location = new Point(3, 47);
+            guna2PictureBox2.Location = new Point(4, 59);
+            guna2PictureBox2.Margin = new Padding(4, 4, 4, 4);
             guna2PictureBox2.Name = "guna2PictureBox2";
             guna2PictureBox2.ShadowDecoration.CustomizableEdges = customizableEdges20;
-            guna2PictureBox2.Size = new Size(246, 139);
+            guna2PictureBox2.Size = new Size(308, 174);
             guna2PictureBox2.SizeMode = PictureBoxSizeMode.Zoom;
             guna2PictureBox2.TabIndex = 3;
             guna2PictureBox2.TabStop = false;
@@ -312,10 +327,11 @@
             guna2Panel4.BackColor = Color.FromArgb(255, 224, 192);
             guna2Panel4.CustomizableEdges = customizableEdges21;
             guna2Panel4.Dock = DockStyle.Bottom;
-            guna2Panel4.Location = new Point(0, 192);
+            guna2Panel4.Location = new Point(0, 240);
+            guna2Panel4.Margin = new Padding(4, 4, 4, 4);
             guna2Panel4.Name = "guna2Panel4";
             guna2Panel4.ShadowDecoration.CustomizableEdges = customizableEdges22;
-            guna2Panel4.Size = new Size(252, 41);
+            guna2Panel4.Size = new Size(315, 51);
             guna2Panel4.TabIndex = 2;
             // 
             // guna2Panel5
@@ -325,18 +341,20 @@
             guna2Panel5.CustomizableEdges = customizableEdges23;
             guna2Panel5.Dock = DockStyle.Top;
             guna2Panel5.Location = new Point(0, 0);
+            guna2Panel5.Margin = new Padding(4, 4, 4, 4);
             guna2Panel5.Name = "guna2Panel5";
             guna2Panel5.ShadowDecoration.CustomizableEdges = customizableEdges24;
-            guna2Panel5.Size = new Size(252, 41);
+            guna2Panel5.Size = new Size(315, 51);
             guna2Panel5.TabIndex = 1;
             // 
             // label1
             // 
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label1.Location = new Point(91, 9);
+            label1.Location = new Point(114, 11);
+            label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(63, 23);
+            label1.Size = new Size(76, 30);
             label1.TabIndex = 1;
             label1.Text = "Table1";
             // 
@@ -349,10 +367,11 @@
             panelTable.Controls.Add(Pictable);
             panelTable.Controls.Add(headertable);
             panelTable.CustomizableEdges = customizableEdges33;
-            panelTable.Location = new Point(3, 3);
+            panelTable.Location = new Point(4, 4);
+            panelTable.Margin = new Padding(4, 4, 4, 4);
             panelTable.Name = "panelTable";
             panelTable.ShadowDecoration.CustomizableEdges = customizableEdges34;
-            panelTable.Size = new Size(252, 233);
+            panelTable.Size = new Size(315, 291);
             panelTable.TabIndex = 0;
             // 
             // footertable
@@ -360,10 +379,11 @@
             footertable.BackColor = Color.FromArgb(255, 224, 192);
             footertable.CustomizableEdges = customizableEdges27;
             footertable.Dock = DockStyle.Bottom;
-            footertable.Location = new Point(0, 192);
+            footertable.Location = new Point(0, 240);
+            footertable.Margin = new Padding(4, 4, 4, 4);
             footertable.Name = "footertable";
             footertable.ShadowDecoration.CustomizableEdges = customizableEdges28;
-            footertable.Size = new Size(252, 41);
+            footertable.Size = new Size(315, 51);
             footertable.TabIndex = 2;
             // 
             // Pictable
@@ -371,10 +391,11 @@
             Pictable.CustomizableEdges = customizableEdges29;
             Pictable.Image = (Image)resources.GetObject("Pictable.Image");
             Pictable.ImageRotate = 0F;
-            Pictable.Location = new Point(3, 47);
+            Pictable.Location = new Point(7, 59);
+            Pictable.Margin = new Padding(4, 4, 4, 4);
             Pictable.Name = "Pictable";
             Pictable.ShadowDecoration.CustomizableEdges = customizableEdges30;
-            Pictable.Size = new Size(246, 139);
+            Pictable.Size = new Size(308, 174);
             Pictable.SizeMode = PictureBoxSizeMode.Zoom;
             Pictable.TabIndex = 1;
             Pictable.TabStop = false;
@@ -387,18 +408,20 @@
             headertable.CustomizableEdges = customizableEdges31;
             headertable.Dock = DockStyle.Top;
             headertable.Location = new Point(0, 0);
+            headertable.Margin = new Padding(4, 4, 4, 4);
             headertable.Name = "headertable";
             headertable.ShadowDecoration.CustomizableEdges = customizableEdges32;
-            headertable.Size = new Size(252, 41);
+            headertable.Size = new Size(315, 51);
             headertable.TabIndex = 1;
             // 
             // lbtableNum
             // 
             lbtableNum.AutoSize = true;
             lbtableNum.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lbtableNum.Location = new Point(91, 9);
+            lbtableNum.Location = new Point(114, 11);
+            lbtableNum.Margin = new Padding(4, 0, 4, 0);
             lbtableNum.Name = "lbtableNum";
-            lbtableNum.Size = new Size(63, 23);
+            lbtableNum.Size = new Size(76, 30);
             lbtableNum.TabIndex = 1;
             lbtableNum.Text = "Table1";
             // 
@@ -411,10 +434,11 @@
             panel.Controls.Add(guna2Panel10);
             panel.Controls.Add(guna2Panel11);
             panel.CustomizableEdges = customizableEdges43;
-            panel.Location = new Point(283, 61);
+            panel.Location = new Point(354, 76);
+            panel.Margin = new Padding(4, 4, 4, 4);
             panel.Name = "panel";
             panel.ShadowDecoration.CustomizableEdges = customizableEdges44;
-            panel.Size = new Size(252, 233);
+            panel.Size = new Size(315, 291);
             panel.TabIndex = 4;
             // 
             // guna2PictureBox1
@@ -422,10 +446,11 @@
             guna2PictureBox1.CustomizableEdges = customizableEdges37;
             guna2PictureBox1.Image = (Image)resources.GetObject("guna2PictureBox1.Image");
             guna2PictureBox1.ImageRotate = 0F;
-            guna2PictureBox1.Location = new Point(3, 47);
+            guna2PictureBox1.Location = new Point(4, 59);
+            guna2PictureBox1.Margin = new Padding(4, 4, 4, 4);
             guna2PictureBox1.Name = "guna2PictureBox1";
             guna2PictureBox1.ShadowDecoration.CustomizableEdges = customizableEdges38;
-            guna2PictureBox1.Size = new Size(246, 139);
+            guna2PictureBox1.Size = new Size(308, 174);
             guna2PictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
             guna2PictureBox1.TabIndex = 3;
             guna2PictureBox1.TabStop = false;
@@ -435,10 +460,11 @@
             guna2Panel10.BackColor = Color.FromArgb(255, 224, 192);
             guna2Panel10.CustomizableEdges = customizableEdges39;
             guna2Panel10.Dock = DockStyle.Bottom;
-            guna2Panel10.Location = new Point(0, 192);
+            guna2Panel10.Location = new Point(0, 240);
+            guna2Panel10.Margin = new Padding(4, 4, 4, 4);
             guna2Panel10.Name = "guna2Panel10";
             guna2Panel10.ShadowDecoration.CustomizableEdges = customizableEdges40;
-            guna2Panel10.Size = new Size(252, 41);
+            guna2Panel10.Size = new Size(315, 51);
             guna2Panel10.TabIndex = 2;
             // 
             // guna2Panel11
@@ -448,30 +474,33 @@
             guna2Panel11.CustomizableEdges = customizableEdges41;
             guna2Panel11.Dock = DockStyle.Top;
             guna2Panel11.Location = new Point(0, 0);
+            guna2Panel11.Margin = new Padding(4, 4, 4, 4);
             guna2Panel11.Name = "guna2Panel11";
             guna2Panel11.ShadowDecoration.CustomizableEdges = customizableEdges42;
-            guna2Panel11.Size = new Size(252, 41);
+            guna2Panel11.Size = new Size(315, 51);
             guna2Panel11.TabIndex = 1;
             // 
             // label3
             // 
             label3.AutoSize = true;
             label3.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label3.Location = new Point(91, 9);
+            label3.Location = new Point(114, 11);
+            label3.Margin = new Padding(4, 0, 4, 0);
             label3.Name = "label3";
-            label3.Size = new Size(63, 23);
+            label3.Size = new Size(76, 30);
             label3.TabIndex = 1;
             label3.Text = "Table1";
             // 
             // TableCards
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(panel);
             Controls.Add(guna2Panel1);
             Controls.Add(Orderheader);
+            Margin = new Padding(4, 4, 4, 4);
             Name = "TableCards";
-            Size = new Size(1380, 795);
+            Size = new Size(1725, 994);
             Orderheader.ResumeLayout(false);
             Orderheader.PerformLayout();
             guna2Panel1.ResumeLayout(false);

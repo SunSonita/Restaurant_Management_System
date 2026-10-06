@@ -1,4 +1,4 @@
-﻿namespace Resturant_Management
+namespace Resturant_Management
 {
     partial class dashboard
     {
@@ -18,14 +18,10 @@
 
         #region Windows Form Designer generated code
 
-        /// <summary>
-        ///  Required method for Designer support - do not modify
-        ///  the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            Guna.UI2.WinForms.Guna2CirclePictureBox PicProfile;
+            PicProfile = new Guna.UI2.WinForms.Guna2CirclePictureBox();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges24 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges25 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
@@ -140,7 +136,7 @@
             // 
             PictureLogo.Location = new Point(-3, 0);
             PictureLogo.Name = "PictureLogo";
-            PictureLogo.Size = new Size(235, 81);
+            PictureLogo.Size = new Size(235, 80);
             PictureLogo.TabIndex = 2;
             PictureLogo.TabStop = false;
             PictureLogo.Click += PictureLogo_Click;
@@ -365,7 +361,7 @@
             header.Location = new Point(233, 0);
             header.Name = "header";
             header.ShadowDecoration.CustomizableEdges = customizableEdges27;
-            header.Size = new Size(1597, 81);
+            header.Size = new Size(1597, 80);
             header.TabIndex = 1;
             // 
             // label1

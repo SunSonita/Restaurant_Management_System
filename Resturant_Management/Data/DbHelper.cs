@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Configuration;
 using System.Data;
 using System.Drawing;
@@ -38,7 +38,7 @@ namespace Resturant_Management.Data
             }
             set
             {
-                _connectionString = value;
+                _connectionString = value; 
             }
         }
 
@@ -178,6 +178,7 @@ CREATE OR ALTER VIEW dbo.vw_SaleByTable
 AS
 SELECT 
     o.OrderID,
+    ISNULL(o.InvoiceNo, o.OrderNo) AS InvoiceNo,
     o.OrderNo,
     o.PostingDate,
     o.TableID,

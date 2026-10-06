@@ -30,6 +30,9 @@ namespace Resturant_Management.Table
 
         private void UpdatGroupTable_Load(object? sender, EventArgs e)
         {
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
             comboTableGroup.Items.Clear();
             comboTableGroup.Items.Add("MainTable");
             comboTableGroup.Items.Add("Delivery");

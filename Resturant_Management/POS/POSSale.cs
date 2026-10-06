@@ -56,6 +56,7 @@ namespace Resturant_Management.POS
         private int _currentCustomerId = 1;
         private long _currentOrderId = 0;
         private string _currentOrderNo = "";
+        private string _invoiceNo = "";
         private string _orderNote = "";
 
         // Custom Document Discount State
@@ -76,12 +77,17 @@ namespace Resturant_Management.POS
         {
             _tableId = tableId;
             _tableName = tableName;
-            _currentOrderNo = GenerateOrderNo();
 
             InitializeComponentByCode();
             SetupCartGridColumns();
 
-            lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo}";
+            if (DesignTimeHelper.IsInDesignMode(this))
+                return;
+
+            _currentOrderNo = GenerateOrderNo();
+            _invoiceNo = GenerateInvoiceNo();
+
+            lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo})";
 
             LoadDefaultCustomer();
             LoadActiveOrderForTable();
@@ -107,7 +113,7 @@ namespace Resturant_Management.POS
             try
             {
                 string sql = @"
-SELECT TOP 1 o.OrderID, o.OrderNo, o.CustomerID, c.CustomerName, o.Note, o.DocDiscountAmount, o.Status
+SELECT TOP 1 o.OrderID, o.OrderNo, o.InvoiceNo, o.CustomerID, c.CustomerName, o.Note, o.DocDiscountAmount, o.Status
 FROM dbo.SALE_ORDER o
 LEFT JOIN dbo.CUSTOMER c ON o.CustomerID = c.CustomerID
 WHERE o.TableID = @TableID AND o.Status IN ('Open', 'Sent', 'Billed')
@@ -119,6 +125,9 @@ ORDER BY o.OrderID DESC;";
                     DataRow r = dt.Rows[0];
                     _currentOrderId = Convert.ToInt64(r["OrderID"]);
                     _currentOrderNo = r["OrderNo"]?.ToString() ?? _currentOrderNo;
+                    _invoiceNo = (r["InvoiceNo"] != DBNull.Value && !string.IsNullOrWhiteSpace(r["InvoiceNo"].ToString()))
+                        ? r["InvoiceNo"].ToString()!
+                        : GenerateInvoiceNo();
                     _currentCustomerId = r["CustomerID"] != DBNull.Value ? Convert.ToInt32(r["CustomerID"]) : 1;
                     if (r["CustomerName"] != DBNull.Value)
                         lblCustomerName.Text = r["CustomerName"].ToString()!;
@@ -127,7 +136,7 @@ ORDER BY o.OrderID DESC;";
                     currentDocDiscountKHR = r["DocDiscountAmount"] != DBNull.Value ? Convert.ToDecimal(r["DocDiscountAmount"]) : 0m;
                     string status = r["Status"]?.ToString() ?? "Open";
 
-                    lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} ({status})";
+                    lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) ({status})";
 
                     string itemsSql = @"
 SELECT oi.[LineNo], i.ItemCode, oi.ItemName, oi.Qty, oi.UomName, oi.UnitPrice, oi.TotalBeforeDis, oi.DiscountPercent, oi.TotalAfterDis
@@ -159,6 +168,38 @@ ORDER BY oi.[LineNo] ASC;";
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading active order: {ex.Message}");
+            }
+        }
+
+        private string GenerateInvoiceNo()
+        {
+            try
+            {
+                string todayPrefix = $"INV-{DateTime.Now:yyyyMMdd}-";
+                object? maxObj = DbHelper.ExecuteScalar(
+                    "SELECT TOP 1 InvoiceNo FROM dbo.SALE_ORDER WHERE InvoiceNo LIKE @Prefix + '%' ORDER BY InvoiceNo DESC",
+                    new SqlParameter("@Prefix", todayPrefix));
+
+                if (maxObj != null && maxObj != DBNull.Value)
+                {
+                    string maxStr = maxObj.ToString()!;
+                    if (maxStr.Length > todayPrefix.Length)
+                    {
+                        string suffix = maxStr.Substring(todayPrefix.Length);
+                        if (int.TryParse(suffix, out int currentSeq))
+                        {
+                            return $"{todayPrefix}{(currentSeq + 1):D4}";
+                        }
+                    }
+                }
+
+                object? countObj = DbHelper.ExecuteScalar("SELECT COUNT(1) FROM dbo.SALE_ORDER WHERE CAST(PostingDate AS date) = CAST(GETDATE() AS date)");
+                int seq = (countObj != null && countObj != DBNull.Value) ? Convert.ToInt32(countObj) + 1 : 1;
+                return $"{todayPrefix}{seq:D4}";
+            }
+            catch
+            {
+                return $"INV-{DateTime.Now:yyyyMMdd}-{DateTime.Now:HHmmss}";
             }
         }
 
@@ -394,6 +435,12 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
         }
 
         private void BtnReceipt_Click(object? sender, EventArgs e)
+        {
+            OpenReceiptList();
+        }
+
+        /// <summary>Opens the receipt list as a child view in the POS area (like Report), with a Back button.</summary>
+        public void OpenReceiptList()
         {
             // Show the receipt list as a child view in the same content area as POS (like Report);
             // the POS layout is only hidden so the cart is intact when the list is closed.
@@ -651,47 +698,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
         private void BtnReceiptList_Click(object? sender, EventArgs e)
         {
-            using (Form modal = new Form())
-            {
-                modal.Text = "Recent Orders & Receipts";
-                modal.Size = new Size(800, 500);
-                modal.StartPosition = FormStartPosition.CenterParent;
-
-                DataGridView dgvOrders = new DataGridView
-                {
-                    Dock = DockStyle.Fill,
-                    ReadOnly = true,
-                    AllowUserToAddRows = false,
-                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                    RowHeadersVisible = false,
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-                };
-
-                try
-                {
-                    string sql = @"
-SELECT 
-    o.OrderID,
-    o.OrderNo,
-    t.TableName,
-    o.Status,
-    o.SubTotal,
-    o.GrandTotal,
-    o.PostingDate
-FROM dbo.SALE_ORDER o
-LEFT JOIN dbo.DINING_TABLE t ON t.TableID = o.TableID
-ORDER BY o.OrderID DESC;";
-                    DataTable dt = DbHelper.ExecuteQuery(sql);
-                    dgvOrders.DataSource = dt;
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.Message);
-                }
-
-                modal.Controls.Add(dgvOrders);
-                modal.ShowDialog();
-            }
+            OpenReceiptList();
         }
 
         private static decimal ParseDecimal(object? val)
@@ -764,13 +771,14 @@ ORDER BY o.OrderID DESC;";
                 {
                     string insertOrderSql = @"
 INSERT INTO dbo.SALE_ORDER 
-(OrderNo, TableID, CustomerID, CreatedBy, PostingDate, Status, Note, SubTotal, ItemDiscountTotal, DocDiscountPercent, DocDiscountAmount, GrandTotal, ExchangeRate)
+(OrderNo, InvoiceNo, TableID, CustomerID, CreatedBy, PostingDate, Status, Note, SubTotal, ItemDiscountTotal, DocDiscountPercent, DocDiscountAmount, GrandTotal, ExchangeRate)
 VALUES 
-(@OrderNo, @TableID, @CustomerID, @CreatedBy, SYSDATETIME(), @Status, @Note, @SubTotal, @ItemDiscountTotal, @DocDiscountPercent, @DocDiscountAmount, @GrandTotal, @ExchangeRate);
+(@OrderNo, @InvoiceNo, @TableID, @CustomerID, @CreatedBy, SYSDATETIME(), @Status, @Note, @SubTotal, @ItemDiscountTotal, @DocDiscountPercent, @DocDiscountAmount, @GrandTotal, @ExchangeRate);
 SELECT SCOPE_IDENTITY();";
 
                     using var cmdOrder = new SqlCommand(insertOrderSql, conn, trans);
                     cmdOrder.Parameters.AddWithValue("@OrderNo", _currentOrderNo);
+                    cmdOrder.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                     cmdOrder.Parameters.AddWithValue("@TableID", (object?)_tableId ?? DBNull.Value);
                     cmdOrder.Parameters.AddWithValue("@CustomerID", _currentCustomerId);
                     cmdOrder.Parameters.AddWithValue("@CreatedBy", UserSession.UserID > 0 ? UserSession.UserID : 1);
@@ -790,6 +798,7 @@ SELECT SCOPE_IDENTITY();";
                 {
                     string updateOrderSql = @"
 UPDATE dbo.SALE_ORDER SET 
+    InvoiceNo = COALESCE(InvoiceNo, @InvoiceNo),
     TableID = @TableID, 
     CustomerID = @CustomerID, 
     Status = @Status, 
@@ -802,6 +811,7 @@ UPDATE dbo.SALE_ORDER SET
 WHERE OrderID = @OrderID;";
 
                     using var cmdUpdate = new SqlCommand(updateOrderSql, conn, trans);
+                    cmdUpdate.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                     cmdUpdate.Parameters.AddWithValue("@TableID", (object?)_tableId ?? DBNull.Value);
                     cmdUpdate.Parameters.AddWithValue("@CustomerID", _currentCustomerId);
                     cmdUpdate.Parameters.AddWithValue("@Status", status);
@@ -817,6 +827,13 @@ WHERE OrderID = @OrderID;";
                     using var cmdDel = new SqlCommand("DELETE FROM dbo.SALE_ORDER_ITEM WHERE OrderID = @OrderID", conn, trans);
                     cmdDel.Parameters.AddWithValue("@OrderID", orderId);
                     cmdDel.ExecuteNonQuery();
+                }
+
+                if (_tableId > 0 && status != "Paid" && status != "Void")
+                {
+                    using var cmdTableOcc = new SqlCommand("UPDATE dbo.DINING_TABLE SET Status = 'Occupied' WHERE TableID = @TID", conn, trans);
+                    cmdTableOcc.Parameters.AddWithValue("@TID", _tableId);
+                    cmdTableOcc.ExecuteNonQuery();
                 }
 
                 int lineNo = 1;
@@ -884,8 +901,8 @@ VALUES
             try
             {
                 SaveOrderToDatabase("Sent");
-                lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} (Sent)";
-                MessageBox.Show($"Order #{_currentOrderNo} for {_tableName} sent to kitchen successfully!",
+                lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) (Sent)";
+                MessageBox.Show($"Order {_invoiceNo} (#{_currentOrderNo}) for {_tableName} sent to kitchen successfully!",
                                 "Kitchen Order Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -904,7 +921,7 @@ VALUES
             try
             {
                 SaveOrderToDatabase("Billed");
-                lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} (Billed)";
+                lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) (Billed)";
                 // Print the guest invoice
                 Print80mmInvoice();
             }
@@ -956,7 +973,8 @@ VALUES
 
                 POSPayment paymentControl = new POSPayment
                 {
-                    Dock = DockStyle.Fill
+                    Dock = DockStyle.Fill,
+                    InvoiceNo = _invoiceNo
                 };
 
                 decimal grandTotal = ComputeCartTotals().grandTotal;
@@ -983,14 +1001,15 @@ VALUES
                         decimal changeUSD = paymentControl.ChangeAmountUSD;
 
                         string insertPaymentSql = @"
-INSERT INTO dbo.PAYMENT (OrderID, PaymentDate, TotalDue, TotalReceived, ChangeAmount, ExchangeRate, ReceivedBy)
-VALUES (@OrderID, @Date, @Due, @Rec, @Chg, @Rate, @User);
+INSERT INTO dbo.PAYMENT (OrderID, InvoiceNo, PaymentDate, TotalDue, TotalReceived, ChangeAmount, ChangeGiven, ExchangeRate, ReceivedBy)
+VALUES (@OrderID, @InvoiceNo, @Date, @Due, @Rec, @Chg, @Chg, @Rate, @User);
 SELECT SCOPE_IDENTITY();";
 
                         long paymentId;
                         using (var cmd = new SqlCommand(insertPaymentSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@OrderID", orderId);
+                            cmd.Parameters.AddWithValue("@InvoiceNo", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                             cmd.Parameters.AddWithValue("@Date", paymentControl.PaymentDate);
                             cmd.Parameters.AddWithValue("@Due", totalDueUSD);
                             cmd.Parameters.AddWithValue("@Rec", totalReceivedUSD);
@@ -1021,10 +1040,20 @@ VALUES (@PID, @MID, @Cur, @Amt, @Rate);";
                         AddPaymentLine(2, "USD", paymentControl.AbaUSD);
                         AddPaymentLine(2, "KHR", paymentControl.AbaKHR);
 
-                        using (var cmdPaid = new SqlCommand("UPDATE dbo.SALE_ORDER SET Status = 'Paid' WHERE OrderID = @OID", conn, trans))
+                        using (var cmdPaid = new SqlCommand("UPDATE dbo.SALE_ORDER SET Status = 'Paid', InvoiceNo = COALESCE(InvoiceNo, @Inv) WHERE OrderID = @OID", conn, trans))
                         {
+                            cmdPaid.Parameters.AddWithValue("@Inv", string.IsNullOrEmpty(_invoiceNo) ? (object)DBNull.Value : _invoiceNo);
                             cmdPaid.Parameters.AddWithValue("@OID", orderId);
                             cmdPaid.ExecuteNonQuery();
+                        }
+
+                        if (_tableId > 0)
+                        {
+                            using (var cmdTable = new SqlCommand("UPDATE dbo.DINING_TABLE SET Status = 'Available' WHERE TableID = @TID", conn, trans))
+                            {
+                                cmdTable.Parameters.AddWithValue("@TID", _tableId);
+                                cmdTable.ExecuteNonQuery();
+                            }
                         }
 
                         string stockItemsSql = @"
@@ -1066,7 +1095,7 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
 
                         trans.Commit();
 
-                        MessageBox.Show($"Payment for #{_currentOrderNo} completed successfully!\nChange: {changeUSD:N2} USD ({(changeUSD * KhrPerUsd):N0} KHR)",
+                        MessageBox.Show($"Payment for Invoice {_invoiceNo} (#{_currentOrderNo}) completed successfully!\nChange: {changeUSD:N2} USD ({(changeUSD * KhrPerUsd):N0} KHR)",
                                         "Payment Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         // Show receipt preview for paid order
@@ -1078,7 +1107,8 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                         btnNote.Text = "Note";
                         _currentOrderId = 0;
                         _currentOrderNo = GenerateOrderNo();
-                        lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo}";
+                        _invoiceNo = GenerateInvoiceNo();
+                        lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo})";
                         RecalculateTotals();
                     }
                     catch (Exception ex)
@@ -1122,8 +1152,12 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                 AutoSize = false,
                 Dock = DockStyle.Bottom,
                 Height = 22,
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand
             };
+            lblReceipt.Click += (s, e) => OpenReceiptList();
+            receiptHost.Cursor = Cursors.Hand;
+            receiptHost.Click += (s, e) => OpenReceiptList();
             receiptHost.Controls.Add(btnReceipt);
             receiptHost.Controls.Add(lblReceipt);
             pnlToolbar.Controls.Add(receiptHost);
