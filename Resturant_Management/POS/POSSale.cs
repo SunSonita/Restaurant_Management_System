@@ -1,4 +1,4 @@
-using Guna.UI2.WinForms;
+﻿using Guna.UI2.WinForms;
 using Resturant_Management.Payment;
 using System;
 using System.Collections.Generic;
@@ -439,21 +439,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 }
                 DateTime timeOut = DateTime.Now;
 
-                int height;
-                using (Bitmap bmp = new Bitmap(1, 1))
-                using (Graphics mg = Graphics.FromImage(bmp))
-                {
-                    height = (int)Math.Ceiling(Render80mmInvoice(mg, timeIn, timeOut)) + 30;
-                }
-
-                var printDoc = new System.Drawing.Printing.PrintDocument();
-                printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
-                printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, Math.Max(300, height));
-                printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
-                printDoc.PrintPage += (ps, pe) =>
-                {
-                    if (pe.Graphics != null) Render80mmInvoice(pe.Graphics, timeIn, timeOut);
-                };
+                var printDoc = BuildInvoicePrintDocument(timeIn, timeOut, out int pageCount);
 
                 using var preview = new PrintPreviewDialog
                 {
@@ -469,7 +455,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 {
                     ppc.AutoZoom = false;
                     ppc.Zoom = 1.25;
-                    ppc.Rows = 1;
+                    ppc.Rows = Math.Min(pageCount, 2);
                     ppc.Columns = 1;
                 }
 
@@ -482,8 +468,74 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             }
         }
 
+        /// <summary>Builds the invoice as fixed 80mm x 80mm pages (315 x 315 hundredths of an inch); long invoices continue on the next page.</summary>
+        internal System.Drawing.Printing.PrintDocument BuildInvoicePrintDocument(DateTime timeIn, DateTime timeOut, out int pageCount)
+        {
+            const int pageSize = 315;
+            const float pageTopPad = 8f;
+            const float pageBottomPad = 6f;
+
+            // Split content at safe row boundaries so no text is cut between pages
+            List<(float start, float end)> Paginate(Graphics mg)
+            {
+                var breaks = new List<float>();
+                float totalHeight = Render80mmInvoice(mg, timeIn, timeOut, breaks);
+                var result = new List<(float start, float end)>();
+                float pos = 0f;
+                while (pos < totalHeight - 0.5f)
+                {
+                    float limit = pos + pageSize - pageBottomPad - (result.Count > 0 ? pageTopPad : 0f);
+                    float end = breaks.Where(b => b > pos + 0.5f && b <= limit).DefaultIfEmpty(Math.Min(limit, totalHeight)).Max();
+                    result.Add((pos, end));
+                    pos = end;
+                }
+                return result;
+            }
+
+            // Estimate for the preview layout; the exact split is measured on the printer's own graphics when printing starts
+            List<(float start, float end)> pages;
+            using (Bitmap bmp = new Bitmap(1, 1))
+            using (Graphics bg = Graphics.FromImage(bmp))
+            {
+                pages = Paginate(bg);
+            }
+            pageCount = pages.Count;
+
+            var printDoc = new System.Drawing.Printing.PrintDocument();
+            printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
+            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80 x 80mm", pageSize, pageSize);
+            printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+
+            int pageIndex = 0;
+            bool measured = false;
+            printDoc.BeginPrint += (ps, pe) => { pageIndex = 0; measured = false; };
+            printDoc.PrintPage += (ps, pe) =>
+            {
+                if (pe.Graphics == null) return;
+                if (!measured)
+                {
+                    try
+                    {
+                        using Graphics mg = pe.PageSettings.PrinterSettings.CreateMeasurementGraphics(pe.PageSettings);
+                        pages = Paginate(mg);
+                    }
+                    catch { /* keep the bitmap estimate */ }
+                    measured = true;
+                }
+                var (start, end) = pages[pageIndex];
+                float offset = pageIndex > 0 ? pageTopPad : 0f;
+                pe.Graphics.TranslateTransform(0, offset - start);
+                pe.Graphics.SetClip(new RectangleF(0, start, pageSize, end - start));
+                Render80mmInvoice(pe.Graphics, timeIn, timeOut);
+                pageIndex++;
+                pe.HasMorePages = pageIndex < pages.Count;
+            };
+
+            return printDoc;
+        }
+
         /// <summary>Draws the 80mm guest invoice (USD with KHR grand total). Returns the final Y used, for page-height sizing.</summary>
-        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut)
+        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut, List<float>? breaks = null)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
@@ -514,8 +566,8 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             decimal ToUsd(decimal v) => cartIsKhr ? v / KhrPerUsd : v;
 
             // 1. Title
-            g.DrawString("INVOICE", fontTitle, brush, new RectangleF(startX, y, width, 24), sfCenter);
-            y += 26;
+            g.DrawString("INVOICE", fontTitle, brush, new RectangleF(startX, y, width, 22), sfCenter);
+            y += 19;
 
             // 2. Header info: left (Cashier/Table/Queue) and right (Time In/Time Out)
             float lblW = 44f, leftValW = 82f;
@@ -524,24 +576,24 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             float rValW = endX - rightX - rLblW;
             const string dtFmt = "dd-MM-yyyy hh:mm tt";
 
-            g.DrawString("Cashier", fontMeta, brush, new RectangleF(startX, y, lblW, 18), sfLeft);
-            g.DrawString(": " + UserSession.Username, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 18), sfLeft);
-            g.DrawString("Time In  :", fontMeta, brush, new RectangleF(rightX, y, rLblW, 18), sfLeft);
-            g.DrawString(timeIn.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 18), sfRight);
-            y += 19;
+            g.DrawString("Cashier", fontMeta, brush, new RectangleF(startX, y, lblW, 17), sfLeft);
+            g.DrawString(": " + UserSession.Username, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 17), sfLeft);
+            g.DrawString("Time In  :", fontMeta, brush, new RectangleF(rightX, y, rLblW, 17), sfLeft);
+            g.DrawString(timeIn.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 17), sfRight);
+            y += 17;
 
-            g.DrawString("Table", fontMeta, brush, new RectangleF(startX, y, lblW, 18), sfLeft);
-            g.DrawString(": " + _tableName, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 18), sfLeft);
-            g.DrawString("Time Out:", fontMeta, brush, new RectangleF(rightX, y, rLblW, 18), sfLeft);
-            g.DrawString(timeOut.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 18), sfRight);
-            y += 19;
+            g.DrawString("Table", fontMeta, brush, new RectangleF(startX, y, lblW, 17), sfLeft);
+            g.DrawString(": " + _tableName, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 17), sfLeft);
+            g.DrawString("Time Out:", fontMeta, brush, new RectangleF(rightX, y, rLblW, 17), sfLeft);
+            g.DrawString(timeOut.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 17), sfRight);
+            y += 17;
 
             g.DrawString("Queue", fontMeta, brush, new RectangleF(startX, y, lblW, 20), sfLeft);
             g.DrawString(": " + _currentOrderNo, fontQueue, brush, new RectangleF(startX + lblW, y, width - lblW, 20), sfLeft);
-            y += 22;
+            y += 20;
 
             g.DrawLine(penSolid, startX, y, endX, y);
-            y += 4;
+            y += 3;
 
             // 3. Item table
             float cNoW = 18f, cQtyW = 36f, cPriceW = 46f, cDisW = 36f, cTotW = 50f;
@@ -553,16 +605,17 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             float cDisX = cPriceX + cPriceW;
             float cTotX = cDisX + cDisW;
 
-            g.DrawString("№", fontHead, brush, new RectangleF(cNoX, y, cNoW, 20), sfLeft);
-            g.DrawString("Description", fontHead, brush, new RectangleF(cDescX, y, cDescW, 20), sfLeft);
-            g.DrawString("Qty", fontHead, brush, new RectangleF(cQtyX, y, cQtyW, 20), sfCenter);
-            g.DrawString("Price", fontHead, brush, new RectangleF(cPriceX, y, cPriceW, 20), sfRight);
-            g.DrawString("Dis.", fontHead, brush, new RectangleF(cDisX, y, cDisW, 20), sfRight);
-            g.DrawString("Total", fontHead, brush, new RectangleF(cTotX, y, cTotW, 20), sfRight);
-            y += 22;
+            g.DrawString("№", fontHead, brush, new RectangleF(cNoX, y, cNoW, 18), sfLeft);
+            breaks?.Add(y);
+            g.DrawString("Description", fontHead, brush, new RectangleF(cDescX, y, cDescW, 18), sfLeft);
+            g.DrawString("Qty", fontHead, brush, new RectangleF(cQtyX, y, cQtyW, 18), sfCenter);
+            g.DrawString("Price", fontHead, brush, new RectangleF(cPriceX, y, cPriceW, 18), sfRight);
+            g.DrawString("Dis.", fontHead, brush, new RectangleF(cDisX, y, cDisW, 18), sfRight);
+            g.DrawString("Total", fontHead, brush, new RectangleF(cTotX, y, cTotW, 18), sfRight);
+            y += 19;
 
             g.DrawLine(penSolid, startX, y, endX, y);
-            y += 4;
+            y += 2;
 
             decimal subBeforeUsd = 0m, subAfterItemUsd = 0m;
             int lineNo = 1;
@@ -578,7 +631,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 subAfterItemUsd += aftUsd;
 
                 SizeF nameSize = g.MeasureString(name, fontBody, (int)cDescW, sfWrap);
-                float rowH = Math.Max(20f, nameSize.Height + 4f);
+                float rowH = Math.Max(18f, nameSize.Height);
 
                 g.DrawString(lineNo.ToString(), fontBody, brush, new RectangleF(cNoX + 2, y, cNoW, rowH), sfLeft);
                 g.DrawString(name, fontBody, brush, new RectangleF(cDescX, y + (rowH - nameSize.Height) / 2f, cDescW, nameSize.Height + 2), sfWrap);
@@ -587,6 +640,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 g.DrawString($"{discPct:0.##}%", fontBody, brush, new RectangleF(cDisX, y, cDisW, rowH), sfRight);
                 g.DrawString(aftUsd.ToString("N2"), fontBody, brush, new RectangleF(cTotX, y, cTotW, rowH), sfRight);
                 y += rowH;
+                breaks?.Add(y);
                 lineNo++;
             }
 
@@ -605,9 +659,10 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             float sumLblW = 196f;
             void DrawTotal(string label, string value, Font f)
             {
-                g.DrawString(label, f, brush, new RectangleF(startX, y, sumLblW, 22), sfRight);
-                g.DrawString(value, f, brush, new RectangleF(startX + sumLblW, y, width - sumLblW, 22), sfRight);
-                y += 23;
+                g.DrawString(label, f, brush, new RectangleF(startX, y, sumLblW, 19), sfRight);
+                g.DrawString(value, f, brush, new RectangleF(startX + sumLblW, y, width - sumLblW, 19), sfRight);
+                y += 19;
+                breaks?.Add(y);
             }
 
             DrawTotal("Sub Total Before Discount :", $"USD {subBeforeUsd:N2}", fontSum);
@@ -619,8 +674,9 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             g.DrawLine(penDot, startX, y, endX, y);
             y += 4;
 
-            g.DrawString($"KHR {grandKhr:N0}", fontSum, brush, new RectangleF(startX, y, width, 22), sfRight);
-            y += 24;
+            g.DrawString($"KHR {grandKhr:N0}", fontSum, brush, new RectangleF(startX, y, width, 19), sfRight);
+            y += 20;
+            breaks?.Add(y);
 
             return y;
         }
