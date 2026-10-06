@@ -429,22 +429,200 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
         {
             try
             {
-                using var printDoc = Create80mmPrintDocument("INVOICE / វិក្កយបត្រ", "Invoice");
-                using var dlg = new PrintDialog
+                // Time In = when the order was first created; Time Out = when the bill is printed
+                DateTime timeIn = DateTime.Now;
+                if (_currentOrderId > 0)
+                {
+                    object? posted = DbHelper.ExecuteScalar("SELECT PostingDate FROM dbo.SALE_ORDER WHERE OrderID = @OID",
+                                                            new SqlParameter("@OID", _currentOrderId));
+                    if (posted != null && posted != DBNull.Value) timeIn = Convert.ToDateTime(posted);
+                }
+                DateTime timeOut = DateTime.Now;
+
+                int height;
+                using (Bitmap bmp = new Bitmap(1, 1))
+                using (Graphics mg = Graphics.FromImage(bmp))
+                {
+                    height = (int)Math.Ceiling(Render80mmInvoice(mg, timeIn, timeOut)) + 30;
+                }
+
+                var printDoc = new System.Drawing.Printing.PrintDocument();
+                printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
+                printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, Math.Max(300, height));
+                printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+                printDoc.PrintPage += (ps, pe) =>
+                {
+                    if (pe.Graphics != null) Render80mmInvoice(pe.Graphics, timeIn, timeOut);
+                };
+
+                using var preview = new PrintPreviewDialog
                 {
                     Document = printDoc,
-                    UseEXDialog = true,
-                    AllowSomePages = false
+                    Width = 520,
+                    Height = 740,
+                    StartPosition = FormStartPosition.CenterParent,
+                    Text = $"Invoice - {_currentOrderNo}"
                 };
-                if (dlg.ShowDialog() == DialogResult.OK)
+
+                var ppc = preview.Controls.OfType<PrintPreviewControl>().FirstOrDefault();
+                if (ppc != null)
                 {
-                    printDoc.Print();
+                    ppc.AutoZoom = false;
+                    ppc.Zoom = 1.25;
+                    ppc.Rows = 1;
+                    ppc.Columns = 1;
                 }
+
+                preview.ShowDialog();
+                printDoc.Dispose();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Print invoice error: {ex.Message}", "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>Draws the 80mm guest invoice (USD with KHR grand total). Returns the final Y used, for page-height sizing.</summary>
+        private float Render80mmInvoice(Graphics g, DateTime timeIn, DateTime timeOut)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            float startX = 6f;
+            float width = 303f;
+            float endX = startX + width;
+            float y = 8f;
+
+            using var fontTitle = DbHelper.GetKhmerFont(13F, FontStyle.Regular);
+            using var fontMeta = DbHelper.GetKhmerFont(8F, FontStyle.Regular);
+            using var fontQueue = DbHelper.GetKhmerFont(10F, FontStyle.Regular);
+            using var fontHead = DbHelper.GetKhmerFont(8F, FontStyle.Bold);
+            using var fontBody = DbHelper.GetKhmerFont(7.5F, FontStyle.Regular);
+            using var fontSum = DbHelper.GetKhmerFont(8.5F, FontStyle.Regular);
+            using var fontGrand = DbHelper.GetKhmerFont(9F, FontStyle.Bold);
+            using var penSolid = new Pen(Color.Black, 1f);
+            using var penDot = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dot };
+            Brush brush = Brushes.Black;
+
+            using var sfLeft = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+            using var sfCenter = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            using var sfRight = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+            using var sfWrap = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+
+            // Cart amounts are KHR (same rule as the rest of POS: totals >= 100 are riel)
+            bool cartIsKhr = GetCartSubTotal() >= 100m;
+            decimal ToUsd(decimal v) => cartIsKhr ? v / KhrPerUsd : v;
+
+            // 1. Title
+            g.DrawString("INVOICE", fontTitle, brush, new RectangleF(startX, y, width, 24), sfCenter);
+            y += 26;
+
+            // 2. Header info: left (Cashier/Table/Queue) and right (Time In/Time Out)
+            float lblW = 44f, leftValW = 82f;
+            float rightX = startX + lblW + leftValW + 4f;
+            float rLblW = 52f;
+            float rValW = endX - rightX - rLblW;
+            const string dtFmt = "dd-MM-yyyy hh:mm tt";
+
+            g.DrawString("Cashier", fontMeta, brush, new RectangleF(startX, y, lblW, 18), sfLeft);
+            g.DrawString(": " + UserSession.Username, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 18), sfLeft);
+            g.DrawString("Time In  :", fontMeta, brush, new RectangleF(rightX, y, rLblW, 18), sfLeft);
+            g.DrawString(timeIn.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 18), sfRight);
+            y += 19;
+
+            g.DrawString("Table", fontMeta, brush, new RectangleF(startX, y, lblW, 18), sfLeft);
+            g.DrawString(": " + _tableName, fontMeta, brush, new RectangleF(startX + lblW, y, leftValW, 18), sfLeft);
+            g.DrawString("Time Out:", fontMeta, brush, new RectangleF(rightX, y, rLblW, 18), sfLeft);
+            g.DrawString(timeOut.ToString(dtFmt), fontMeta, brush, new RectangleF(rightX + rLblW, y, rValW, 18), sfRight);
+            y += 19;
+
+            g.DrawString("Queue", fontMeta, brush, new RectangleF(startX, y, lblW, 20), sfLeft);
+            g.DrawString(": " + _currentOrderNo, fontQueue, brush, new RectangleF(startX + lblW, y, width - lblW, 20), sfLeft);
+            y += 22;
+
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 4;
+
+            // 3. Item table
+            float cNoW = 18f, cQtyW = 36f, cPriceW = 46f, cDisW = 36f, cTotW = 50f;
+            float cDescW = width - cNoW - cQtyW - cPriceW - cDisW - cTotW;
+            float cNoX = startX;
+            float cDescX = cNoX + cNoW;
+            float cQtyX = cDescX + cDescW;
+            float cPriceX = cQtyX + cQtyW;
+            float cDisX = cPriceX + cPriceW;
+            float cTotX = cDisX + cDisW;
+
+            g.DrawString("№", fontHead, brush, new RectangleF(cNoX, y, cNoW, 20), sfLeft);
+            g.DrawString("Description", fontHead, brush, new RectangleF(cDescX, y, cDescW, 20), sfLeft);
+            g.DrawString("Qty", fontHead, brush, new RectangleF(cQtyX, y, cQtyW, 20), sfCenter);
+            g.DrawString("Price", fontHead, brush, new RectangleF(cPriceX, y, cPriceW, 20), sfRight);
+            g.DrawString("Dis.", fontHead, brush, new RectangleF(cDisX, y, cDisW, 20), sfRight);
+            g.DrawString("Total", fontHead, brush, new RectangleF(cTotX, y, cTotW, 20), sfRight);
+            y += 22;
+
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 4;
+
+            decimal subBeforeUsd = 0m, subAfterItemUsd = 0m;
+            int lineNo = 1;
+            foreach (DataGridViewRow row in dgvCart.Rows)
+            {
+                string name = row.Cells["colName"].Value?.ToString() ?? "";
+                decimal qty = ParseDecimal(row.Cells["colQty"].Value);
+                decimal priceUsd = ToUsd(ParseDecimal(row.Cells["colPrice"].Value));
+                decimal befUsd = ToUsd(ParseDecimal(row.Cells["colBefDis"].Value));
+                decimal aftUsd = ToUsd(ParseDecimal(row.Cells["colAftDis"].Value));
+                decimal discPct = ParseDecimal(row.Cells["colDisc"].Value);
+                subBeforeUsd += befUsd;
+                subAfterItemUsd += aftUsd;
+
+                SizeF nameSize = g.MeasureString(name, fontBody, (int)cDescW, sfWrap);
+                float rowH = Math.Max(20f, nameSize.Height + 4f);
+
+                g.DrawString(lineNo.ToString(), fontBody, brush, new RectangleF(cNoX + 2, y, cNoW, rowH), sfLeft);
+                g.DrawString(name, fontBody, brush, new RectangleF(cDescX, y + (rowH - nameSize.Height) / 2f, cDescW, nameSize.Height + 2), sfWrap);
+                g.DrawString(qty.ToString("0.0"), fontBody, brush, new RectangleF(cQtyX, y, cQtyW, rowH), sfCenter);
+                g.DrawString(priceUsd.ToString("N2"), fontBody, brush, new RectangleF(cPriceX, y, cPriceW, rowH), sfRight);
+                g.DrawString($"{discPct:0.##}%", fontBody, brush, new RectangleF(cDisX, y, cDisW, rowH), sfRight);
+                g.DrawString(aftUsd.ToString("N2"), fontBody, brush, new RectangleF(cTotX, y, cTotW, rowH), sfRight);
+                y += rowH;
+                lineNo++;
+            }
+
+            y += 2;
+            g.DrawLine(penSolid, startX, y, endX, y);
+            y += 4;
+
+            // 4. Totals
+            decimal discountUsd = (subBeforeUsd - subAfterItemUsd) + ToUsd(currentDocDiscountKHR);
+            if (discountUsd < 0) discountUsd = 0;
+            decimal subAfterUsd = Math.Max(0m, subBeforeUsd - discountUsd);
+            decimal grandUsd = subAfterUsd;
+            decimal grandKhr = grandUsd * KhrPerUsd;
+            decimal discPctTotal = subBeforeUsd > 0 ? Math.Round(discountUsd / subBeforeUsd * 100m, 2) : 0m;
+
+            float sumLblW = 196f;
+            void DrawTotal(string label, string value, Font f)
+            {
+                g.DrawString(label, f, brush, new RectangleF(startX, y, sumLblW, 22), sfRight);
+                g.DrawString(value, f, brush, new RectangleF(startX + sumLblW, y, width - sumLblW, 22), sfRight);
+                y += 23;
+            }
+
+            DrawTotal("Sub Total Before Discount :", $"USD {subBeforeUsd:N2}", fontSum);
+            DrawTotal($"Discount ({discPctTotal:0.##}%) :", $"USD {discountUsd:N2}", fontSum);
+            DrawTotal("Sub Total After Discount :", $"USD {subAfterUsd:N2}", fontSum);
+            DrawTotal("Grand Total :", $"USD {grandUsd:N2}", fontGrand);
+
+            y += 2;
+            g.DrawLine(penDot, startX, y, endX, y);
+            y += 4;
+
+            g.DrawString($"KHR {grandKhr:N0}", fontSum, brush, new RectangleF(startX, y, width, 22), sfRight);
+            y += 24;
+
+            return y;
         }
 
         private void Show80mmReceiptPreview()
