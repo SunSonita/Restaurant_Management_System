@@ -127,6 +127,48 @@ IF COL_LENGTH('dbo.SALE_ORDER', 'ExchangeRate') IS NULL
             _paymentSchemaChecked = true;
         }
 
+        private static bool _reportViewsChecked = false;
+
+        /// <summary>
+        /// Older databases have the per-table aggregate vw_SaleByTable; the Sale by Table report needs the per-order version.
+        /// Mirrors Database/RestaurantDB_Schema.sql so the report works without re-running the script.
+        /// </summary>
+        public static void EnsureReportViews()
+        {
+            if (_reportViewsChecked) return;
+
+            object? hasOrderId = ExecuteScalar("SELECT COL_LENGTH('dbo.vw_SaleByTable', 'OrderID')");
+            if (hasOrderId == null || hasOrderId == DBNull.Value)
+            {
+                ExecuteNonQuery("IF OBJECT_ID('dbo.vw_SaleByTable', 'V') IS NOT NULL DROP VIEW dbo.vw_SaleByTable;");
+                ExecuteNonQuery(@"
+CREATE VIEW dbo.vw_SaleByTable
+AS
+SELECT
+    o.OrderID,
+    o.OrderNo,
+    o.PostingDate,
+    o.TableID,
+    CASE
+        WHEN o.TableID IS NULL THEN 'Takeaway / Delivery'
+        ELSE ISNULL(t.TableName, 'Table ' + CAST(o.TableID AS varchar(10)))
+    END AS TableName,
+    ISNULL(tg.GroupName, 'Main Dining Hall') AS GroupTable,
+    ISNULL(u.FullName, 'System') AS Creator,
+    o.SubTotal AS TotalBeforeDis,
+    o.ItemDiscountTotal + o.DocDiscountAmount AS DiscountItem,
+    o.GrandTotal AS TotalAfterDis,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS Paid,
+    o.Status
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
+LEFT JOIN dbo.TABLE_GROUP tg ON t.TableGroupID = tg.TableGroupID
+LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
+WHERE o.Status IN ('Sent', 'Billed', 'Paid');");
+            }
+            _reportViewsChecked = true;
+        }
+
         private static string? _resolvedKhmerFontName = null;
 
         public static Font GetKhmerFont(float size, FontStyle style = FontStyle.Regular)

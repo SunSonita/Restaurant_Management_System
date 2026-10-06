@@ -103,6 +103,8 @@ namespace Resturant_Management.Report
 
             try
             {
+                DbHelper.EnsureReportViews();
+
                 DataTable dt;
 
                 if (reportType == "Group by Table")

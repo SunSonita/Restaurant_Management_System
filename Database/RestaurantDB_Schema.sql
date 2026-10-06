@@ -518,20 +518,30 @@ IF OBJECT_ID('dbo.vw_SaleByTable', 'V') IS NOT NULL
     DROP VIEW dbo.vw_SaleByTable;
 GO
 
+-- One row per order (amounts in KHR); the Sale by Table report groups it by table / table group
 CREATE VIEW dbo.vw_SaleByTable
 AS
-SELECT 
-    t.TableID,
-    t.TableCode,
-    t.TableName,
-    tg.GroupName AS TableGroupName,
-    COUNT(o.OrderID) AS OrderCount,
-    ISNULL(SUM(o.GrandTotal), 0) AS TotalAmountKHR,
-    ISNULL(ROUND(SUM(o.GrandTotal) / dbo.fn_UsdRate(), 2), 0) AS TotalAmountUSD
-FROM dbo.DINING_TABLE t
+SELECT
+    o.OrderID,
+    o.OrderNo,
+    o.PostingDate,
+    o.TableID,
+    CASE
+        WHEN o.TableID IS NULL THEN 'Takeaway / Delivery'
+        ELSE ISNULL(t.TableName, 'Table ' + CAST(o.TableID AS varchar(10)))
+    END AS TableName,
+    ISNULL(tg.GroupName, 'Main Dining Hall') AS GroupTable,
+    ISNULL(u.FullName, 'System') AS Creator,
+    o.SubTotal AS TotalBeforeDis,
+    o.ItemDiscountTotal + o.DocDiscountAmount AS DiscountItem,
+    o.GrandTotal AS TotalAfterDis,
+    CASE WHEN o.Status = 'Paid' THEN o.GrandTotal ELSE 0 END AS Paid,
+    o.Status
+FROM dbo.SALE_ORDER o
+LEFT JOIN dbo.DINING_TABLE t ON o.TableID = t.TableID
 LEFT JOIN dbo.TABLE_GROUP tg ON t.TableGroupID = tg.TableGroupID
-LEFT JOIN dbo.SALE_ORDER o ON t.TableID = o.TableID AND o.Status IN ('Sent', 'Billed', 'Paid')
-GROUP BY t.TableID, t.TableCode, t.TableName, tg.GroupName;
+LEFT JOIN dbo.APP_USER u ON o.CreatedBy = u.UserID
+WHERE o.Status IN ('Sent', 'Billed', 'Paid');
 GO
 
 IF OBJECT_ID('dbo.vw_DailyPaymentSummary', 'V') IS NOT NULL
