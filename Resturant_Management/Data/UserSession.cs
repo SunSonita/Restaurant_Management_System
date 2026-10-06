@@ -8,6 +8,7 @@ namespace Resturant_Management.Data
         public static string Username { get; set; } = "admin";
         public static string FullName { get; set; } = "Administrator";
         public static string Role { get; set; } = "Admin";
+        public static string? ProfileImagePath { get; set; }
         public static bool IsLoggedIn { get; set; } = true;
 
         public static bool IsAdmin => string.Equals(Role, "Admin", StringComparison.OrdinalIgnoreCase);
@@ -19,12 +20,13 @@ namespace Resturant_Management.Data
         public static bool CanManageUsers => IsAdmin;
         public static bool CanViewReports => true; // All authenticated staff can view reports
 
-        public static void SetUser(int userId, string username, string fullName, string role)
+        public static void SetUser(int userId, string username, string fullName, string role, string? profileImagePath = null)
         {
             UserID = userId;
             Username = username;
             FullName = fullName;
             Role = role;
+            ProfileImagePath = profileImagePath;
             IsLoggedIn = true;
         }
 
@@ -34,6 +36,7 @@ namespace Resturant_Management.Data
             Username = "";
             FullName = "";
             Role = "";
+            ProfileImagePath = null;
             IsLoggedIn = false;
         }
     }

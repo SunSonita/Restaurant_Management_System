@@ -1,4 +1,4 @@
-﻿namespace Resturant_Management.Login
+namespace Resturant_Management.Login
 {
     partial class LoginUser
     {
@@ -54,15 +54,16 @@
             // PicProfile
             // 
             PicProfile.BackColor = Color.Transparent;
-            PicProfile.BorderStyle = BorderStyle.FixedSingle;
             PicProfile.Image = (Image)resources.GetObject("PicProfile.Image");
             PicProfile.ImageRotate = 0F;
             PicProfile.InitialImage = null;
-            PicProfile.Location = new Point(135, 91);
+            PicProfile.Location = new Point(162, 114);
+            PicProfile.Margin = new Padding(4);
             PicProfile.Name = "PicProfile";
             PicProfile.ShadowDecoration.CustomizableEdges = customizableEdges1;
             PicProfile.ShadowDecoration.Mode = Guna.UI2.WinForms.Enums.ShadowMode.Circle;
-            PicProfile.Size = new Size(151, 153);
+            PicProfile.Size = new Size(188, 188);
+            PicProfile.SizeMode = PictureBoxSizeMode.Zoom;
             PicProfile.TabIndex = 3;
             PicProfile.TabStop = false;
             // 
@@ -72,8 +73,9 @@
             panel1.Controls.Add(guna2Panel1);
             panel1.Dock = DockStyle.Fill;
             panel1.Location = new Point(0, 0);
+            panel1.Margin = new Padding(4);
             panel1.Name = "panel1";
-            panel1.Size = new Size(800, 628);
+            panel1.Size = new Size(1000, 785);
             panel1.TabIndex = 0;
             // 
             // guna2Panel1
@@ -89,19 +91,21 @@
             guna2Panel1.CustomBorderColor = Color.White;
             guna2Panel1.CustomizableEdges = customizableEdges8;
             guna2Panel1.FillColor = Color.White;
-            guna2Panel1.Location = new Point(185, 38);
+            guna2Panel1.Location = new Point(231, 48);
+            guna2Panel1.Margin = new Padding(4);
             guna2Panel1.Name = "guna2Panel1";
             guna2Panel1.ShadowDecoration.CustomizableEdges = customizableEdges9;
-            guna2Panel1.Size = new Size(411, 545);
+            guna2Panel1.Size = new Size(514, 681);
             guna2Panel1.TabIndex = 0;
             // 
             // label1
             // 
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI", 13.8F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label1.Location = new Point(121, 34);
+            label1.Location = new Point(151, 42);
+            label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(176, 31);
+            label1.Size = new Size(214, 38);
             label1.TabIndex = 7;
             label1.Text = "Authentication";
             label1.Click += label1_Click;
@@ -117,10 +121,11 @@
             btnSigin.FillColor = Color.Blue;
             btnSigin.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnSigin.ForeColor = Color.White;
-            btnSigin.Location = new Point(54, 417);
+            btnSigin.Location = new Point(68, 521);
+            btnSigin.Margin = new Padding(4);
             btnSigin.Name = "btnSigin";
             btnSigin.ShadowDecoration.CustomizableEdges = customizableEdges3;
-            btnSigin.Size = new Size(319, 42);
+            btnSigin.Size = new Size(399, 52);
             btnSigin.TabIndex = 6;
             btnSigin.Text = "Sign In";
             // 
@@ -136,17 +141,19 @@
             txtPassword.DisabledState.PlaceholderForeColor = Color.FromArgb(138, 138, 138);
             txtPassword.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
             txtPassword.Font = new Font("Segoe UI", 9F);
-            txtPassword.ForeColor = Color.Gray;
+            txtPassword.ForeColor = Color.Black;
             txtPassword.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtPassword.Location = new Point(54, 335);
-            txtPassword.Margin = new Padding(3, 4, 3, 4);
+            txtPassword.Location = new Point(68, 419);
+            txtPassword.Margin = new Padding(4, 5, 4, 5);
             txtPassword.Name = "txtPassword";
+            txtPassword.PasswordChar = '*';
             txtPassword.PlaceholderForeColor = Color.Gray;
             txtPassword.PlaceholderText = "Password";
             txtPassword.SelectedText = "";
             txtPassword.ShadowDecoration.CustomizableEdges = customizableEdges5;
-            txtPassword.Size = new Size(319, 53);
+            txtPassword.Size = new Size(399, 66);
             txtPassword.TabIndex = 5;
+            txtPassword.TextChanged += txtPassword_TextChanged;
             // 
             // txtUsername
             // 
@@ -160,24 +167,25 @@
             txtUsername.DisabledState.PlaceholderForeColor = Color.FromArgb(138, 138, 138);
             txtUsername.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
             txtUsername.Font = new Font("Segoe UI", 9F);
-            txtUsername.ForeColor = Color.Gray;
+            txtUsername.ForeColor = Color.Black;
             txtUsername.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtUsername.Location = new Point(54, 265);
-            txtUsername.Margin = new Padding(3, 4, 3, 4);
+            txtUsername.Location = new Point(68, 331);
+            txtUsername.Margin = new Padding(4, 5, 4, 5);
             txtUsername.Name = "txtUsername";
             txtUsername.PlaceholderForeColor = Color.Gray;
             txtUsername.PlaceholderText = "Username";
             txtUsername.SelectedText = "";
             txtUsername.ShadowDecoration.CustomizableEdges = customizableEdges7;
-            txtUsername.Size = new Size(319, 53);
+            txtUsername.Size = new Size(399, 66);
             txtUsername.TabIndex = 4;
             // 
             // LoginUser
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 628);
+            ClientSize = new Size(1000, 785);
             Controls.Add(panel1);
+            Margin = new Padding(4);
             Name = "LoginUser";
             Text = "LoginUser";
             ((System.ComponentModel.ISupportInitialize)PicProfile).EndInit();

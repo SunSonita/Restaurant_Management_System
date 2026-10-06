@@ -425,13 +425,20 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
         private void BtnReceipt_Click(object? sender, EventArgs e)
         {
-            if (dgvCart.Rows.Count == 0)
-            {
-                MessageBox.Show("Please add items to cart to preview/print receipt.", "Receipt Preview", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            OpenReceiptList();
+        }
 
-            Show80mmReceiptPreview();
+        public void OpenReceiptList()
+        {
+            using (var frm = new FrmReceiptList())
+            {
+                frm.StartPosition = FormStartPosition.CenterParent;
+                Form? parentForm = this.FindForm();
+                if (parentForm != null)
+                    frm.ShowDialog(parentForm);
+                else
+                    frm.ShowDialog(this);
+            }
         }
 
         private void Show80mmReceiptPreview()
@@ -442,6 +449,8 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
                 var printDoc = new System.Drawing.Printing.PrintDocument();
                 printDoc.DocumentName = $"Receipt_{_invoiceNo}_{_currentOrderNo}";
+                // Suppress "Generating preview..." / progress popup
+                printDoc.PrintController = new System.Drawing.Printing.StandardPrintController();
 
                 // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
                 printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, calculatedHeight);
@@ -455,25 +464,12 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                     }
                 };
 
-                using var preview = new PrintPreviewDialog
-                {
-                    Document = printDoc,
-                    Width = 520,
-                    Height = 740,
-                    StartPosition = FormStartPosition.CenterParent,
-                    Text = $"Print Preview (80x80) - {_invoiceNo} (#{_currentOrderNo})"
-                };
+                using var preview = new FrmReceiptPreview(
+                    printDoc,
+                    $"Print Preview (80x80) - {_invoiceNo} (#{_currentOrderNo})",
+                    (g, w, h) => Render80mmReceipt(g, w, h));
 
-                var ppc = preview.Controls.OfType<PrintPreviewControl>().FirstOrDefault();
-                if (ppc != null)
-                {
-                    ppc.AutoZoom = false;
-                    ppc.Zoom = 1.25;
-                    ppc.Rows = 1;
-                    ppc.Columns = 1;
-                }
-
-                preview.ShowDialog();
+                preview.ShowDialog(this);
             }
             catch (Exception ex)
             {
@@ -740,48 +736,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
 
         private void BtnReceiptList_Click(object? sender, EventArgs e)
         {
-            using (Form modal = new Form())
-            {
-                modal.Text = "Recent Orders & Receipts";
-                modal.Size = new Size(800, 500);
-                modal.StartPosition = FormStartPosition.CenterParent;
-
-                DataGridView dgvOrders = new DataGridView
-                {
-                    Dock = DockStyle.Fill,
-                    ReadOnly = true,
-                    AllowUserToAddRows = false,
-                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                    RowHeadersVisible = false,
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-                };
-
-                try
-                {
-                    string sql = @"
-SELECT 
-    o.OrderID,
-    ISNULL(o.InvoiceNo, o.OrderNo) AS [Invoice No],
-    o.OrderNo AS [Order No],
-    t.TableName AS [Table],
-    o.Status,
-    o.SubTotal,
-    o.GrandTotal,
-    o.PostingDate
-FROM dbo.SALE_ORDER o
-LEFT JOIN dbo.DINING_TABLE t ON t.TableID = o.TableID
-ORDER BY o.OrderID DESC;";
-                    DataTable dt = DbHelper.ExecuteQuery(sql);
-                    dgvOrders.DataSource = dt;
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.Message);
-                }
-
-                modal.Controls.Add(dgvOrders);
-                modal.ShowDialog();
-            }
+            OpenReceiptList();
         }
 
         private static decimal ParseDecimal(object? val)
@@ -1016,7 +971,7 @@ VALUES
                 SaveOrderToDatabase("Billed");
                 lblTableOrder.Text = $"{_tableName} > {_invoiceNo} (#{_currentOrderNo}) (Billed)";
                 // Open Receipt preview for printing/showing the guest bill
-                BtnReceipt_Click(this, EventArgs.Empty);
+                Show80mmReceiptPreview();
             }
             catch (Exception ex)
             {
@@ -1199,7 +1154,7 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                                         "Payment Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         // Show receipt preview for paid order
-                        BtnReceipt_Click(this, EventArgs.Empty);
+                        Show80mmReceiptPreview();
 
                         dgvCart.Rows.Clear();
                         currentDocDiscountKHR = 0.00m;
@@ -1252,8 +1207,12 @@ VALUES (@ItemID, 'Sale', @Qty, @Cost, @OrderItemID, 'POS Sale', @CreatedBy, SYSD
                 AutoSize = false,
                 Dock = DockStyle.Bottom,
                 Height = 22,
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand
             };
+            lblReceipt.Click += (s, e) => OpenReceiptList();
+            receiptHost.Cursor = Cursors.Hand;
+            receiptHost.Click += (s, e) => OpenReceiptList();
             receiptHost.Controls.Add(btnReceipt);
             receiptHost.Controls.Add(lblReceipt);
             pnlToolbar.Controls.Add(receiptHost);

@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using Resturant_Management.Data;
@@ -123,7 +124,7 @@ namespace Resturant_Management.Table
             dgvGroupTable.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
             dgvGroupTable.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             dgvGroupTable.GridColor = Color.FromArgb(235, 238, 242);
-            dgvGroupTable.RowTemplate.Height = 50;
+            dgvGroupTable.RowTemplate.Height = 55;
             dgvGroupTable.AllowUserToAddRows = false;
             dgvGroupTable.AllowUserToDeleteRows = false;
             dgvGroupTable.AllowUserToResizeRows = false;
@@ -179,13 +180,43 @@ ORDER BY TableGroupID;";
 
                 foreach (DataRow r in dt.Rows)
                 {
+                    string imagePath = r["ImagePath"]?.ToString() ?? "";
+                    Image? groupImage = null;
+
+                    if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+                    {
+                        try
+                        {
+                            using (var fs = new FileStream(imagePath, FileMode.Open, FileAccess.Read))
+                            {
+                                using (var tempImg = Image.FromStream(fs))
+                                {
+                                    groupImage = new Bitmap(tempImg, new Size(40, 40));
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            groupImage = null;
+                        }
+                    }
+
                     int rowIndex = dgvGroupTable.Rows.Add(
-                        "Edit",
+                        "➔",
+                        groupImage,
                         r["GroupCode"]?.ToString(),
                         r["GroupName"]?.ToString(),
-                        r["GroupType"]?.ToString(),
-                        r["ImagePath"]?.ToString()
+                        r["GroupType"]?.ToString()
                     );
+
+                    // Align left for Edit column
+                    dgvGroupTable.Rows[rowIndex].Cells["colAction"].Style.ForeColor = Color.FromArgb(21, 119, 214);
+                    dgvGroupTable.Rows[rowIndex].Cells["colAction"].Style.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+                    dgvGroupTable.Rows[rowIndex].Cells["colAction"].Style.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
+                    // Align left for Image column
+                    dgvGroupTable.Rows[rowIndex].Cells["colImage"].Style.Alignment = DataGridViewContentAlignment.MiddleLeft;
+
                     dgvGroupTable.Rows[rowIndex].Tag = Convert.ToInt32(r["TableGroupID"]);
                 }
             }
@@ -205,6 +236,10 @@ ORDER BY TableGroupID;";
                 parent.Controls.Add(createView);
                 createView.BringToFront();
             }
+        }
+
+        private void GroupTable_Load_1(object sender, EventArgs e)
+        {
         }
     }
 }

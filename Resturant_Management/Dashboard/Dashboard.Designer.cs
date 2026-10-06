@@ -136,7 +136,7 @@ namespace Resturant_Management
             // 
             PictureLogo.Location = new Point(-3, 0);
             PictureLogo.Name = "PictureLogo";
-            PictureLogo.Size = new Size(235, 81);
+            PictureLogo.Size = new Size(235, 80);
             PictureLogo.TabIndex = 2;
             PictureLogo.TabStop = false;
             PictureLogo.Click += PictureLogo_Click;
@@ -361,7 +361,7 @@ namespace Resturant_Management
             header.Location = new Point(233, 0);
             header.Name = "header";
             header.ShadowDecoration.CustomizableEdges = customizableEdges27;
-            header.Size = new Size(1597, 81);
+            header.Size = new Size(1597, 80);
             header.TabIndex = 1;
             // 
             // label1

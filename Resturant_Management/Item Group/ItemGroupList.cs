@@ -125,18 +125,20 @@ namespace Resturant_Management.Item_Group
             var colEdit = new DataGridViewImageColumn { Name = "colEdit", HeaderText = "Edit", FillWeight = 9, ImageLayout = DataGridViewImageCellLayout.Normal };
             var colAddChild = new DataGridViewImageColumn { Name = "colAddChild", HeaderText = "Add Child", FillWeight = 11, ImageLayout = DataGridViewImageCellLayout.Normal };
             var colId = new DataGridViewTextBoxColumn { Name = "colId", HeaderText = "ID", Visible = false };
+            var colVisible = new DataGridViewTextBoxColumn { Name = "colVisible", HeaderText = "Visible", FillWeight = 13 };
 
             grid.Columns.AddRange(
                 colCategory,
                 colImage,
-                new DataGridViewTextBoxColumn { HeaderText = "Number of Sub-groups", FillWeight = 36 },
-                new DataGridViewTextBoxColumn { HeaderText = "Visible", FillWeight = 13 },
-                new DataGridViewTextBoxColumn { HeaderText = "Level", FillWeight = 12 },
+                new DataGridViewTextBoxColumn { Name = "colSubGroups", HeaderText = "Number of Sub-groups", FillWeight = 36 },
+                colVisible,
+                new DataGridViewTextBoxColumn { Name = "colLevel", HeaderText = "Level", FillWeight = 12 },
                 colEdit,
                 colAddChild,
                 colId
             );
 
+            grid.CellFormatting += Grid_CellFormatting;
             grid.CellClick += Grid_CellClick;
 
             var gridHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(30, 0, 30, 0) };
@@ -172,7 +174,7 @@ namespace Resturant_Management.Item_Group
                 Location = new Point(20, 17)
             };
 
-            var btnCreate = HeaderButton("Create", 88);
+            var btnCreate = HeaderButton("Create", 120);
             btnCreate.Click += BtnCreate_Click;
 
             var buttons = new FlowLayoutPanel
@@ -210,17 +212,45 @@ namespace Resturant_Management.Item_Group
             {
                 string search = txtSearchBox?.Text?.Trim() ?? "";
                 string sql = @"
+WITH GroupTree AS (
+    SELECT 
+        g.GroupID,
+        g.ParentGroupID,
+        g.GroupName,
+        g.GroupCode,
+        g.ImagePath,
+        g.IsVisible,
+        0 AS [Level],
+        CAST(RIGHT('00000' + CAST(g.GroupID AS varchar(10)), 5) AS varchar(max)) AS HierarchyPath
+    FROM dbo.ITEM_GROUP g
+    WHERE g.ParentGroupID IS NULL 
+       OR NOT EXISTS (SELECT 1 FROM dbo.ITEM_GROUP p WHERE p.GroupID = g.ParentGroupID)
+
+    UNION ALL
+
+    SELECT 
+        c.GroupID,
+        c.ParentGroupID,
+        c.GroupName,
+        c.GroupCode,
+        c.ImagePath,
+        c.IsVisible,
+        p.[Level] + 1 AS [Level],
+        CAST(p.HierarchyPath + '.' + RIGHT('00000' + CAST(c.GroupID AS varchar(10)), 5) AS varchar(max)) AS HierarchyPath
+    FROM dbo.ITEM_GROUP c
+    INNER JOIN GroupTree p ON c.ParentGroupID = p.GroupID
+)
 SELECT 
-    g.GroupID,
-    g.GroupName,
-    g.GroupCode,
-    g.ImagePath,
-    (SELECT COUNT(1) FROM dbo.ITEM_GROUP s WHERE s.ParentGroupID = g.GroupID) AS SubGroupCount,
-    CASE WHEN g.IsVisible = 1 THEN 'Yes' ELSE 'No' END AS VisibleStr,
-    CASE WHEN g.ParentGroupID IS NULL THEN '0' ELSE '1' END AS [Level]
-FROM dbo.ITEM_GROUP g
-WHERE (@Search = '' OR g.GroupName LIKE @Pattern OR g.GroupCode LIKE @Pattern)
-ORDER BY g.GroupID;";
+    t.GroupID,
+    t.GroupName,
+    t.GroupCode,
+    t.ImagePath,
+    (SELECT COUNT(1) FROM dbo.ITEM_GROUP s WHERE s.ParentGroupID = t.GroupID) AS SubGroupCount,
+    CASE WHEN t.IsVisible = 1 THEN 'Yes' ELSE 'No' END AS VisibleStr,
+    t.[Level]
+FROM GroupTree t
+WHERE (@Search = '' OR t.GroupName LIKE @Pattern OR t.GroupCode LIKE @Pattern)
+ORDER BY t.HierarchyPath;";
 
                 DataTable dt = DbHelper.ExecuteQuery(sql,
                     new SqlParameter("@Search", search),
@@ -236,16 +266,38 @@ ORDER BY g.GroupID;";
                     }
 
                     string subCount = r["SubGroupCount"]?.ToString() ?? "0";
-                    grid.Rows.Add(
-                        r["GroupName"]?.ToString(),
+                    int level = 0;
+                    if (r["Level"] != DBNull.Value)
+                    {
+                        int.TryParse(r["Level"]?.ToString(), out level);
+                    }
+
+                    string groupName = r["GroupName"]?.ToString() ?? "";
+                    string displayCategory = groupName;
+                    if (level > 0)
+                    {
+                        displayCategory = new string(' ', level * 4) + "|\u2014 " + groupName;
+                    }
+
+                    int rowIdx = grid.Rows.Add(
+                        displayCategory,
                         rowImg,
-                        subCount == "0" ? "" : subCount,
+                        subCount,
                         r["VisibleStr"]?.ToString(),
-                        r["Level"]?.ToString(),
+                        level.ToString(),
                         editIcon,
                         addIcon,
                         Convert.ToInt32(r["GroupID"])
                     );
+
+                    string vis = r["VisibleStr"]?.ToString() ?? "";
+                    if (string.Equals(vis, "No", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var cell = grid.Rows[rowIdx].Cells["colVisible"];
+                        cell.Style.ForeColor = Color.FromArgb(220, 53, 69);
+                        cell.Style.SelectionForeColor = Color.FromArgb(220, 53, 69);
+                        cell.Style.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+                    }
                 }
             }
             catch (Exception ex)
@@ -253,6 +305,22 @@ ORDER BY g.GroupID;";
                 System.Diagnostics.Debug.WriteLine($"Error loading groups: {ex.Message}");
             }
             grid.ClearSelection();
+        }
+
+        private void Grid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+
+            if (grid.Columns[e.ColumnIndex].Name == "colVisible")
+            {
+                string val = e.Value?.ToString() ?? "";
+                if (string.Equals(val, "No", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(220, 53, 69);
+                    e.CellStyle.SelectionForeColor = Color.FromArgb(220, 53, 69);
+                    e.CellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+                }
+            }
         }
 
         private void Grid_CellClick(object? sender, DataGridViewCellEventArgs e)
@@ -309,6 +377,8 @@ ORDER BY g.GroupID;";
             ForeColor = Color.White,
             BorderRadius = 4,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            TextAlign = HorizontalAlignment.Center,
+            TextOffset = new Point(0, 0),
             Margin = new Padding(4, 0, 4, 0),
             Cursor = Cursors.Hand
         };

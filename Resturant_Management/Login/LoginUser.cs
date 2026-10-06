@@ -37,7 +37,7 @@ namespace Resturant_Management.Login
 
             try
             {
-                string query = "SELECT UserID, Username, PasswordHash, FullName, Role, IsActive FROM dbo.APP_USER WHERE Username = @Username";
+                string query = "SELECT UserID, Username, PasswordHash, FullName, Role, ProfileImagePath, IsActive FROM dbo.APP_USER WHERE Username = @Username";
                 DataTable dt = DbHelper.ExecuteQuery(query, new SqlParameter("@Username", username));
 
                 if (dt.Rows.Count > 0)
@@ -57,8 +57,9 @@ namespace Resturant_Management.Login
                     {
                         string fullName = row["FullName"]?.ToString() ?? username;
                         string role = row["Role"]?.ToString() ?? "Cashier";
+                        string? profileImagePath = row["ProfileImagePath"]?.ToString();
 
-                        UserSession.SetUser(userId, username, fullName, role);
+                        UserSession.SetUser(userId, username, fullName, role, profileImagePath);
 
                         this.Hide();
                         dashboard mainDash = new dashboard();
@@ -97,5 +98,10 @@ namespace Resturant_Management.Login
         }
 
         private void label1_Click(object? sender, EventArgs e) { }
+
+        private void txtPassword_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }

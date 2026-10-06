@@ -810,8 +810,8 @@ GO
 /* ================= 10. SEED INITIAL DATA ================= */
 IF NOT EXISTS (SELECT 1 FROM dbo.APP_USER WHERE Username = 'admin')
 BEGIN
-    INSERT INTO dbo.APP_USER (Username, PasswordHash, FullName, Role, IsActive)
-    VALUES ('admin', 'admin123', 'System Administrator', 'Admin', 1);
+    INSERT INTO dbo.APP_USER (Username, PasswordHash, FullName, Role, IsActive, ProfileImagePath)
+    VALUES ('admin', 'admin123', 'System Administrator', 'Admin', 1, 'Resources\admin_profile.png');
 END
 
 IF NOT EXISTS (SELECT 1 FROM dbo.APP_USER WHERE Username = 'manager')
@@ -846,4 +846,3 @@ BEGIN
     (2, 'VIP-1', 'VIP Room 1', 10, 'Available', 1);
 END
 GO
-
