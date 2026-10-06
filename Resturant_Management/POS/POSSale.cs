@@ -258,15 +258,26 @@ ORDER BY oi.[LineNo] ASC;";
                     try
                     {
                         string sql = @"
-SELECT i.ItemCode, i.ItemName, COALESCE(ip.PriceKHR, ip.PriceUSD * 4000, 0) AS Price 
-FROM dbo.ITEM i 
-LEFT JOIN dbo.vw_ItemPrice ip ON i.ItemID = ip.ItemID 
+SELECT i.ItemCode, i.ItemName, COALESCE(ip.PriceKHR, ip.PriceUSD * 4000, 0) AS Price,
+       i.IsStockItem, ISNULL(s.QtyOnHand, 0) AS StockQty
+FROM dbo.ITEM i
+LEFT JOIN dbo.vw_ItemPrice ip ON i.ItemID = ip.ItemID
+LEFT JOIN dbo.vw_ItemStock s ON i.ItemID = s.ItemID
 WHERE i.ItemCode = @code AND i.IsInactive = 0";
                         DataTable dt = DbHelper.ExecuteQuery(sql, new SqlParameter("@code", barcode));
                         if (dt.Rows.Count > 0)
                         {
                             string code = dt.Rows[0]["ItemCode"]?.ToString() ?? barcode;
                             string name = dt.Rows[0]["ItemName"]?.ToString() ?? barcode;
+                            bool isStock = dt.Rows[0]["IsStockItem"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["IsStockItem"]);
+                            decimal stockQty = Convert.ToDecimal(dt.Rows[0]["StockQty"]);
+                            if (isStock && stockQty <= 0)
+                            {
+                                MessageBox.Show($"\"{name}\" is out of stock and cannot be ordered.",
+                                                "Out of Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                txtReadBarcode.Clear();
+                                return;
+                            }
                             decimal price = Convert.ToDecimal(dt.Rows[0]["Price"]);
                             AddProductToCart(code, name, price);
                         }
@@ -393,26 +404,54 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             Show80mmReceiptPreview();
         }
 
+        private System.Drawing.Printing.PrintDocument Create80mmPrintDocument(string title, string docPrefix)
+        {
+            int calculatedHeight = Calculate80mmReceiptHeight();
+
+            var printDoc = new System.Drawing.Printing.PrintDocument();
+            printDoc.DocumentName = $"{docPrefix}_{_currentOrderNo}";
+
+            // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
+            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, calculatedHeight);
+            printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+
+            printDoc.PrintPage += (ps, pe) =>
+            {
+                if (pe.Graphics != null)
+                {
+                    Render80mmReceipt(pe.Graphics, 315, calculatedHeight, title);
+                }
+            };
+            return printDoc;
+        }
+
+        private void Print80mmInvoice()
+        {
+            try
+            {
+                using var printDoc = Create80mmPrintDocument("INVOICE / វិក្កយបត្រ", "Invoice");
+                using var dlg = new PrintDialog
+                {
+                    Document = printDoc,
+                    UseEXDialog = true,
+                    AllowSomePages = false
+                };
+                if (dlg.ShowDialog() == DialogResult.OK)
+                {
+                    printDoc.Print();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Print invoice error: {ex.Message}", "Print Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void Show80mmReceiptPreview()
         {
             try
             {
-                int calculatedHeight = Calculate80mmReceiptHeight();
-
-                var printDoc = new System.Drawing.Printing.PrintDocument();
-                printDoc.DocumentName = $"Receipt_{_currentOrderNo}";
-
-                // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
-                printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, calculatedHeight);
-                printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
-
-                printDoc.PrintPage += (ps, pe) =>
-                {
-                    if (pe.Graphics != null)
-                    {
-                        Render80mmReceipt(pe.Graphics, 315, calculatedHeight);
-                    }
-                };
+                var printDoc = Create80mmPrintDocument("RECEIPT / វិក្កយបត្រ", "Receipt");
 
                 using var preview = new PrintPreviewDialog
                 {
@@ -479,7 +518,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             return Math.Max(350, (int)Math.Ceiling(h));
         }
 
-        private void Render80mmReceipt(Graphics g, float paperWidth, float paperHeight)
+        private void Render80mmReceipt(Graphics g, float paperWidth, float paperHeight, string title = "RECEIPT / វិក្កយបត្រ")
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
@@ -538,7 +577,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             }
 
             y += 4;
-            g.DrawString("RECEIPT / វិក្កយបត្រ", fontHeader, brushText, new RectangleF(startX, y, printableWidth, 20), sfCenter);
+            g.DrawString(title, fontHeader, brushText, new RectangleF(startX, y, printableWidth, 20), sfCenter);
             y += 22;
 
             g.DrawLine(penDash, startX, y, endX, y);
@@ -551,6 +590,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 g.DrawString(val, fontBody, brushText, new RectangleF(startX + 75, y, printableWidth - 75, 16), sfLeft);
                 y += 17;
             }
+
 
             DrawMetaRow("Order No :", $"#{_currentOrderNo}");
             DrawMetaRow("Table    :", _tableName);
@@ -962,8 +1002,8 @@ VALUES
             {
                 SaveOrderToDatabase("Billed");
                 lblTableOrder.Text = $"{_tableName} > #{_currentOrderNo} (Billed)";
-                // Open Receipt preview for printing/showing the guest bill
-                BtnReceipt_Click(this, EventArgs.Empty);
+                // Print the guest invoice
+                Print80mmInvoice();
             }
             catch (Exception ex)
             {
@@ -983,6 +1023,8 @@ VALUES
             long orderId;
             try
             {
+                DbHelper.EnsurePaymentSchema();
+
                 string statusToSave = "Open";
                 if (_currentOrderId > 0)
                 {
@@ -1067,14 +1109,16 @@ SELECT SCOPE_IDENTITY();";
                         void AddPaymentLine(byte methodId, string currency, decimal amount)
                         {
                             if (amount <= 0) return;
+                            decimal rate = currency == "USD" ? KhrPerUsd : 1m;
                             string lineSql = @"
-INSERT INTO dbo.PAYMENT_LINE (PaymentID, MethodID, CurrencyCode, Amount)
-VALUES (@PID, @MID, @Cur, @Amt);";
+INSERT INTO dbo.PAYMENT_DETAIL (PaymentID, MethodID, CurrencyCode, Amount, ExchangeRate)
+VALUES (@PID, @MID, @Cur, @Amt, @Rate);";
                             using var cmd = new SqlCommand(lineSql, conn, trans);
                             cmd.Parameters.AddWithValue("@PID", paymentId);
                             cmd.Parameters.AddWithValue("@MID", methodId);
                             cmd.Parameters.AddWithValue("@Cur", currency);
                             cmd.Parameters.AddWithValue("@Amt", amount);
+                            cmd.Parameters.AddWithValue("@Rate", rate);
                             cmd.ExecuteNonQuery();
                         }
 

@@ -101,6 +101,32 @@ namespace Resturant_Management.Data
             return cmd.ExecuteScalar();
         }
 
+        private static bool _paymentSchemaChecked = false;
+
+        /// <summary>
+        /// Adds payment columns that older databases are missing (e.g. PAYMENT.ExchangeRate, PAYMENT.TotalDue).
+        /// Mirrors the migration block in Database/RestaurantDB_Schema.sql so POS payment works without re-running the script.
+        /// </summary>
+        public static void EnsurePaymentSchema()
+        {
+            if (_paymentSchemaChecked) return;
+
+            const string sql = @"
+IF COL_LENGTH('dbo.PAYMENT', 'InvoiceNo') IS NULL
+    ALTER TABLE dbo.PAYMENT ADD [InvoiceNo] varchar(50) NULL;
+IF COL_LENGTH('dbo.PAYMENT', 'TotalDue') IS NULL
+    ALTER TABLE dbo.PAYMENT ADD [TotalDue] decimal(18,2) NULL;
+IF COL_LENGTH('dbo.PAYMENT', 'ChangeAmount') IS NULL
+    ALTER TABLE dbo.PAYMENT ADD [ChangeAmount] decimal(18,2) NULL;
+IF COL_LENGTH('dbo.PAYMENT', 'ExchangeRate') IS NULL
+    ALTER TABLE dbo.PAYMENT ADD [ExchangeRate] decimal(18,4) NOT NULL CONSTRAINT DF_PAYMENT_ExchangeRate DEFAULT 4000;
+IF COL_LENGTH('dbo.SALE_ORDER', 'ExchangeRate') IS NULL
+    ALTER TABLE dbo.SALE_ORDER ADD [ExchangeRate] decimal(18,4) NULL;";
+
+            ExecuteNonQuery(sql);
+            _paymentSchemaChecked = true;
+        }
+
         private static string? _resolvedKhmerFontName = null;
 
         public static Font GetKhmerFont(float size, FontStyle style = FontStyle.Regular)

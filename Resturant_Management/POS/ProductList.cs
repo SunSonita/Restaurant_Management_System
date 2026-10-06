@@ -285,7 +285,7 @@ ORDER BY i.ItemID";
             {
                 Label lblStock = new Label
                 {
-                    Text = $"Stock: {prod.StockQty}",
+                    Text = prod.StockQty > 0 ? $"Stock: {prod.StockQty}" : "Out of stock",
                     Font = new Font("Segoe UI", 7.5F, FontStyle.Regular),
                     ForeColor = prod.StockQty > 0 ? Color.FromArgb(46, 125, 50) : Color.Red,
                     BackColor = Color.White,
@@ -310,12 +310,17 @@ ORDER BY i.ItemID";
             };
             pbImage.Controls.Add(lblPrice);
 
+            if (IsOutOfStock(prod))
+            {
+                lblPrice.BackColor = Color.Gray;
+            }
+
             // --- BOTTOM FOOTER BANNER ---
             Panel pnlBottom = new Panel
             {
                 Size = new Size(130, 28),
                 Location = new Point(0, 137),
-                BackColor = Color.FromArgb(128, 98, 108)
+                BackColor = IsOutOfStock(prod) ? Color.Gray : Color.FromArgb(128, 98, 108)
             };
 
             Label lblCode = new Label
@@ -350,11 +355,20 @@ ORDER BY i.ItemID";
             flpProducts.Controls.Add(card);
         }
 
+        private static bool IsOutOfStock(ProductModel prod) => prod.IsStockProduct && prod.StockQty <= 0;
+
         private void BindClickEvent(Control ctrl, ProductModel prod)
         {
-            ctrl.Cursor = Cursors.Hand;
+            ctrl.Cursor = IsOutOfStock(prod) ? Cursors.No : Cursors.Hand;
             ctrl.Click += (s, e) =>
             {
+                if (IsOutOfStock(prod))
+                {
+                    MessageBox.Show($"\"{prod.Name}\" is out of stock and cannot be ordered.",
+                                    "Out of Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 var args = new ProductEventArgs(prod.Code, prod.Name, prod.Price);
                 OnProductSelected?.Invoke(this, args);
                 ProductClicked?.Invoke(this, args);
