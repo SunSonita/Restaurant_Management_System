@@ -1,28 +1,20 @@
 using System;
 using System.Data;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
+using System.IO;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using Resturant_Management.Data;
 
 namespace Resturant_Management.Table
 {
-    public partial class CreateTableList : Form
+    public partial class CreateTableList : UserControl
     {
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
+        private string? _imagePath;
+        private bool _configured = false;
 
-        [DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
-
-        private const int WM_NCLBUTTONDOWN = 0xA1;
-        private const int HT_CAPTION = 0x2;
-
-        private readonly CheckBox chkTablePriceList = new CheckBox();
-        private readonly ComboBox comboPriceList = new ComboBox();
-        private readonly ComboBox comboType = new ComboBox();
+        private static readonly Color PlaceholderColor = Color.FromArgb(170, 180, 196);
+        private static readonly Color LinkBlue = Color.FromArgb(26, 115, 232);
 
         public CreateTableList()
         {
@@ -30,243 +22,210 @@ namespace Resturant_Management.Table
             if (DesignTimeHelper.IsInDesignMode(this))
                 return;
 
-            BuildModernLayout();
+            this.Load += CreateTableList_Load;
+            this.Resize += (s, e) => ApplyLayout();
 
             btnSave.Click += BtnSave_Click;
-            label1.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
-            this.Load += CreateTableList_Load;
+
+            PicItem.Cursor = Cursors.Hand;
+            label3.Cursor = Cursors.Hand;
+            PicItem.Click += ChooseImage_Click;
+            label3.Click += ChooseImage_Click;
         }
 
-        private void BuildModernLayout()
+        // Scale a 96-DPI pixel value to the current monitor DPI
+        private int S(int v) => (int)Math.Round(v * DeviceDpi / 96.0);
+
+        // ------------------------------------------------------------------
+        // Look & feel (run once, after the handle exists so DPI is correct)
+        // ------------------------------------------------------------------
+        private void ConfigureControls()
         {
-            this.SuspendLayout();
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.Size = new Size(760, 390);
+            if (_configured) return;
+            _configured = true;
+
+            int fieldH = S(46);
+
             this.BackColor = Color.White;
 
-            this.Controls.Clear();
+            label2.AutoSize = true;
+            label2.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
 
-            // 1. Top Gray Header Bar with Draggable support and ✕ Close button
-            Panel pnlTop = new Panel
+            // Text inputs
+            foreach (var t in new[] { txtPrefixName, txtNumberfrom, txtNumberTo })
             {
-                Dock = DockStyle.Top,
-                Height = 32,
-                BackColor = Color.FromArgb(241, 245, 249)
-            };
-            pnlTop.MouseDown += (s, e) =>
+                t.Font = new Font("Segoe UI", 10F);
+                t.BorderRadius = 5;
+                t.Size = new Size(t.Width, fieldH);
+            }
+
+            // Combos (blank by default, same height as the text inputs).
+            // For an owner-drawn Guna combo: control height = ItemHeight + 6
+            foreach (var c in new[] { cmbTableGroup, comboTableGroup })
             {
-                if (e.Button == MouseButtons.Left)
-                {
-                    ReleaseCapture();
-                    SendMessage(this.Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
-                }
-            };
+                c.Font = new Font("Segoe UI", 10F);
+                c.BorderRadius = 5;
+                c.ItemHeight = fieldH - 6;
+                c.Height = fieldH;
+            }
 
-            label1.Text = "✕";
-            label1.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            label1.ForeColor = Color.FromArgb(71, 85, 105);
-            label1.AutoSize = true;
-            label1.Location = new Point(pnlTop.Width - 28, 6);
-            label1.Cursor = Cursors.Hand;
-            pnlTop.Resize += (s, e) => { label1.Location = new Point(pnlTop.Width - 28, 6); };
-            pnlTop.Controls.Add(label1);
+            // The old "Group Table" / "Type" labels become in-field placeholders
+            SetupPlaceholder(label4, cmbTableGroup, "Group Table");
+            SetupPlaceholder(lbTableGroup, comboTableGroup, "Type");
 
-            // 2. Title "Create Table List"
-            Label lblTitle = new Label
-            {
-                Text = "Create Table List",
-                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(30, 41, 59),
-                AutoSize = true,
-                Location = new Point(36, 48)
-            };
+            // Image box + link, same style as the reference
+            PicItem.BorderRadius = 0;
+            PicItem.BorderStyle = BorderStyle.FixedSingle;
+            PicItem.BackColor = Color.White;
+            PicItem.SizeMode = PictureBoxSizeMode.Zoom;
 
-            // 3. Configure Input Controls
-            // txtPrefixName
-            txtPrefixName.BorderThickness = 0;
-            txtPrefixName.Font = new Font("Segoe UI", 9.5F);
-            txtPrefixName.ForeColor = Color.FromArgb(30, 41, 59);
-
-            // txtNumberfrom
-            txtNumberfrom.BorderThickness = 0;
-            txtNumberfrom.Font = new Font("Segoe UI", 9.5F);
-            txtNumberfrom.ForeColor = Color.FromArgb(30, 41, 59);
-
-            // txtNumberTo
-            txtNumberTo.BorderThickness = 0;
-            txtNumberTo.Font = new Font("Segoe UI", 9.5F);
-            txtNumberTo.ForeColor = Color.FromArgb(30, 41, 59);
-
-            // comboTableGroup
-            comboTableGroup.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboTableGroup.Font = new Font("Segoe UI", 9.5F);
-            comboTableGroup.BorderThickness = 0;
-            comboTableGroup.ForeColor = Color.FromArgb(30, 41, 59);
-
-            // comboPriceList
-            comboPriceList.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboPriceList.Font = new Font("Segoe UI", 9.5F);
-            comboPriceList.FlatStyle = FlatStyle.Flat;
-            comboPriceList.ForeColor = Color.FromArgb(30, 41, 59);
-            comboPriceList.Items.AddRange(new object[] { "Standard Dine-in", "VIP Menu", "Happy Hour" });
-            comboPriceList.SelectedIndex = 0;
-
-            // comboType
-            comboType.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboType.Font = new Font("Segoe UI", 9.5F);
-            comboType.FlatStyle = FlatStyle.Flat;
-            comboType.ForeColor = Color.FromArgb(30, 41, 59);
-            comboType.Items.AddRange(new object[] { "Normal", "VIP", "Outdoor", "Delivery", "Take Out" });
-            comboType.SelectedIndex = 0;
-
-            // Checkbox
-            chkTablePriceList.Text = "Table Price List";
-            chkTablePriceList.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
-            chkTablePriceList.ForeColor = Color.FromArgb(51, 65, 85);
-            chkTablePriceList.AutoSize = true;
-            chkTablePriceList.Location = new Point(36, 256);
-            chkTablePriceList.Cursor = Cursors.Hand;
-
-            // Outlined Field Panels matching second image reference
-            Panel fldPrefix = CreateOutlinedField("Prefix Name", txtPrefixName, 36, 82, 330, 42);
-            Panel fldFrom = CreateOutlinedField("Number From", txtNumberfrom, 36, 138, 330, 42);
-            Panel fldTo = CreateOutlinedField("Number To", txtNumberTo, 36, 194, 330, 42, isFocused: true, isSpinner: true);
-
-            Panel fldGroup = CreateOutlinedField("Group Table", comboTableGroup, 394, 82, 330, 42);
-            Panel fldPrice = CreateOutlinedField("Price List :", comboPriceList, 394, 138, 330, 42);
-            Panel fldType = CreateOutlinedField("Type :", comboType, 394, 194, 330, 42);
-
-            // 4. Save Button
-            btnSave.Text = "Save";
-            btnSave.Size = new Size(80, 34);
-            btnSave.Location = new Point(this.Width - 116, 330);
-            btnSave.BorderRadius = 4;
-            btnSave.FillColor = Color.FromArgb(26, 117, 210);
-            btnSave.HoverState.FillColor = Color.FromArgb(21, 101, 192);
-            btnSave.ForeColor = Color.White;
-            btnSave.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnSave.Cursor = Cursors.Hand;
-            btnSave.ShadowDecoration.Enabled = false;
-
-            // Add all controls
-            this.Controls.Add(pnlTop);
-            this.Controls.Add(lblTitle);
-            this.Controls.Add(fldPrefix);
-            this.Controls.Add(fldFrom);
-            this.Controls.Add(fldTo);
-            this.Controls.Add(chkTablePriceList);
-            this.Controls.Add(fldGroup);
-            this.Controls.Add(fldPrice);
-            this.Controls.Add(fldType);
-            this.Controls.Add(btnSave);
-
-            // 5. Draw 1px subtle outer border around frameless modal dialog
-            this.Paint += (s, e) =>
-            {
-                using (Pen p = new Pen(Color.FromArgb(203, 213, 225), 1f))
-                {
-                    e.Graphics.DrawRectangle(p, 0, 0, this.Width - 1, this.Height - 1);
-                }
-            };
-
-            this.ResumeLayout(true);
+            label3.AutoSize = false;
+            label3.AutoEllipsis = true;
+            label3.TextAlign = ContentAlignment.MiddleCenter;
+            label3.Font = new Font("Segoe UI", 10.5F, FontStyle.Underline);
+            label3.ForeColor = LinkBlue;
+            label3.Text = "Click to choose image";
         }
 
-        private Panel CreateOutlinedField(string labelText, Control inputControl, int x, int y, int width, int height, bool isFocused = false, bool isSpinner = false)
+        private void SetupPlaceholder(Label lbl, Guna.UI2.WinForms.Guna2ComboBox cbo, string text)
         {
-            Panel pnl = new Panel
+            lbl.AutoSize = false;
+            lbl.Text = text;
+            lbl.BackColor = Color.White;
+            lbl.ForeColor = PlaceholderColor;
+            lbl.Font = new Font("Segoe UI", 10F);
+            lbl.TextAlign = ContentAlignment.MiddleLeft;
+            lbl.Cursor = Cursors.Hand;
+
+            lbl.Click += (s, e) =>
             {
-                Location = new Point(x, y),
-                Size = new Size(width, height),
-                BackColor = Color.White
+                cbo.Focus();
+                cbo.DroppedDown = true;
             };
-
-            Color borderColor = isFocused ? Color.FromArgb(26, 117, 210) : Color.FromArgb(209, 213, 219);
-
-            Label lbl = new Label
-            {
-                Text = labelText,
-                Font = new Font("Segoe UI", 8F, FontStyle.Regular),
-                ForeColor = isFocused ? Color.FromArgb(26, 117, 210) : Color.FromArgb(100, 116, 139),
-                BackColor = Color.White,
-                AutoSize = true,
-                Location = new Point(10, 0)
-            };
-
-            pnl.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (Pen pen = new Pen(borderColor, 1.2f))
-                {
-                    Rectangle rect = new Rectangle(0, 6, width - 1, height - 7);
-                    using (GraphicsPath path = GetRoundedPath(rect, 4))
-                    {
-                        e.Graphics.DrawPath(pen, path);
-                    }
-                }
-
-                if (isSpinner)
-                {
-                    using (SolidBrush arrowBrush = new SolidBrush(Color.FromArgb(100, 116, 139)))
-                    {
-                        // Up arrow
-                        Point[] up = { new Point(width - 20, 16), new Point(width - 14, 16), new Point(width - 17, 12) };
-                        e.Graphics.FillPolygon(arrowBrush, up);
-                        // Down arrow
-                        Point[] down = { new Point(width - 20, 24), new Point(width - 14, 24), new Point(width - 17, 28) };
-                        e.Graphics.FillPolygon(arrowBrush, down);
-                    }
-                }
-            };
-
-            inputControl.Location = new Point(12, 13);
-            inputControl.Width = isSpinner ? width - 38 : width - 24;
-            inputControl.Height = 22;
-
-            pnl.Controls.Add(lbl);
-            pnl.Controls.Add(inputControl);
-            lbl.BringToFront();
-
-            return pnl;
+            cbo.SelectedIndexChanged += (s, e) => UpdatePlaceholders();
         }
 
-        private GraphicsPath GetRoundedPath(Rectangle rect, int radius)
+        private void UpdatePlaceholders()
         {
-            GraphicsPath path = new GraphicsPath();
-            int diameter = radius * 2;
-            Rectangle arc = new Rectangle(rect.Location, new Size(diameter, diameter));
-
-            path.AddArc(arc, 180, 90);
-            arc.X = rect.Right - diameter;
-            path.AddArc(arc, 270, 90);
-            arc.Y = rect.Bottom - diameter;
-            path.AddArc(arc, 0, 90);
-            arc.X = rect.Left;
-            path.AddArc(arc, 90, 90);
-            path.CloseFigure();
-            return path;
+            label4.Visible = cmbTableGroup.SelectedIndex < 0;
+            lbTableGroup.Visible = comboTableGroup.SelectedIndex < 0;
         }
 
+        // ------------------------------------------------------------------
+        // Responsive layout: equal left/right margin, equal-size fields
+        // [ prefix / from / to ]  [ group / type ]  [ image ]
+        // ------------------------------------------------------------------
+        private void ApplyLayout()
+        {
+            if (!_configured || ClientSize.Width <= 0) return;
+
+            SuspendLayout();
+
+            int m = S(24);          // page margin (left == right)
+            int pad = S(24);        // card inner padding
+            int fieldH = S(46);
+            int rowGap = S(16);
+            int colGap = S(24);
+            int picW = S(220);
+            int linkH = S(26);
+            int linkGap = S(10);
+
+            // Title
+            label2.Location = new Point(m, S(20));
+
+            // Card
+            int innerH = fieldH * 3 + rowGap * 2;
+            int cardW = ClientSize.Width - m * 2;
+            int cardTop = label2.Bottom + S(14);
+            panelInformationItem.SetBounds(m, cardTop, cardW, innerH + pad * 2);
+
+            // Columns
+            int fieldW = Math.Max(S(120), (cardW - pad * 2 - picW - colGap * 2) / 2);
+            int x1 = pad;
+            int x2 = x1 + fieldW + colGap;
+            int x3 = cardW - pad - picW;
+
+            int y0 = pad;
+            int y1 = y0 + fieldH + rowGap;
+            int y2 = y1 + fieldH + rowGap;
+
+            // Column 1
+            txtPrefixName.SetBounds(x1, y0, fieldW, fieldH);
+            txtNumberfrom.SetBounds(x1, y1, fieldW, fieldH);
+            txtNumberTo.SetBounds(x1, y2, fieldW, fieldH);
+
+            // Column 2
+            cmbTableGroup.SetBounds(x2, y0, fieldW, fieldH);
+            comboTableGroup.SetBounds(x2, y1, fieldW, fieldH);
+
+            // Placeholders sit inside the combos (leave the border and arrow free)
+            label4.SetBounds(cmbTableGroup.Left + S(10), cmbTableGroup.Top + S(6),
+                             cmbTableGroup.Width - S(48), cmbTableGroup.Height - S(12));
+            lbTableGroup.SetBounds(comboTableGroup.Left + S(10), comboTableGroup.Top + S(6),
+                                   comboTableGroup.Width - S(48), comboTableGroup.Height - S(12));
+            label4.BringToFront();
+            lbTableGroup.BringToFront();
+
+            // Column 3: image + link
+            int picH = innerH - linkH - linkGap;
+            PicItem.SetBounds(x3, y0, picW, picH);
+            label3.SetBounds(x3, y0 + picH + linkGap, picW, linkH);
+
+            // Save button, aligned with the left margin
+            btnSave.Size = new Size(S(108), S(44));
+            btnSave.Location = new Point(m, panelInformationItem.Bottom + S(20));
+
+            ResumeLayout(true);
+        }
+
+
+        // NOTE: in the designer, cmbTableGroup = "Group Table" combo, comboTableGroup = "Type" combo
         private void CreateTableList_Load(object? sender, EventArgs e)
         {
             if (DesignTimeHelper.IsInDesignMode(this))
                 return;
 
+            ConfigureControls();
+
             try
             {
                 DataTable dt = DbHelper.ExecuteQuery("SELECT TableGroupID, GroupName FROM dbo.TABLE_GROUP ORDER BY GroupName");
-                comboTableGroup.DataSource = dt;
-                comboTableGroup.DisplayMember = "GroupName";
-                comboTableGroup.ValueMember = "TableGroupID";
-
-                txtPrefixName.Text = "Table";
-                txtNumberfrom.Text = "11";
-                txtNumberTo.Text = "20";
+                cmbTableGroup.Items.Clear();
+                cmbTableGroup.DataSource = dt;
+                cmbTableGroup.DisplayMember = "GroupName";
+                cmbTableGroup.ValueMember = "TableGroupID";
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error loading groups: {ex.Message}", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            // Start blank: the user clicks to open the dropdown and choose
+            cmbTableGroup.SelectedIndex = -1;
+            comboTableGroup.SelectedIndex = -1;
+            UpdatePlaceholders();
+
+            ApplyLayout();
+        }
+
+        private void ChooseImage_Click(object? sender, EventArgs e)
+        {
+            using OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.webp;*.bmp";
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                // Load via a copy so the file is not locked
+                using Image src = Image.FromFile(ofd.FileName);
+                PicItem.Image?.Dispose();
+                PicItem.Image = new Bitmap(src);
+                _imagePath = ofd.FileName;
+                label3.Text = Path.GetFileName(ofd.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not load image: {ex.Message}", "Image Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -288,7 +247,12 @@ namespace Resturant_Management.Table
                 return;
             }
 
-            int groupId = comboTableGroup.SelectedValue != null ? Convert.ToInt32(comboTableGroup.SelectedValue) : 1;
+            if (cmbTableGroup.SelectedValue == null)
+            {
+                MessageBox.Show("Please select a group table.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int groupId = Convert.ToInt32(cmbTableGroup.SelectedValue);
 
             int createdCount = 0;
             try
@@ -305,13 +269,14 @@ namespace Resturant_Management.Table
                     string insertSql = @"
 IF NOT EXISTS (SELECT 1 FROM dbo.DINING_TABLE WHERE TableCode = @Code)
 BEGIN
-    INSERT INTO dbo.DINING_TABLE (TableGroupID, TableCode, TableName, Capacity, Status, IsActive)
-    VALUES (@GroupID, @Code, @Name, 4, 'Available', 1);
+    INSERT INTO dbo.DINING_TABLE (TableGroupID, TableCode, TableName, Capacity, Status, IsActive, ImagePath)
+    VALUES (@GroupID, @Code, @Name, 4, 'Available', 1, @Img);
 END";
                     using var cmd = new SqlCommand(insertSql, conn, trans);
                     cmd.Parameters.AddWithValue("@GroupID", groupId);
                     cmd.Parameters.AddWithValue("@Code", code);
                     cmd.Parameters.AddWithValue("@Name", name);
+                    cmd.Parameters.AddWithValue("@Img", (object?)_imagePath ?? DBNull.Value);
                     int r = cmd.ExecuteNonQuery();
                     if (r > 0) createdCount++;
                 }
@@ -319,13 +284,23 @@ END";
                 trans.Commit();
 
                 MessageBox.Show($"Successfully created {createdCount} table(s).", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                this.DialogResult = DialogResult.OK;
-                this.Close();
+                GoBackToList();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error creating tables: {ex.Message}", "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void GoBackToList()
+        {
+            Control? parent = this.Parent;
+            if (parent == null) return;
+
+            parent.Controls.Clear();
+            TableList list = new TableList { Dock = DockStyle.Fill };
+            parent.Controls.Add(list);
+            list.BringToFront();
         }
     }
 }

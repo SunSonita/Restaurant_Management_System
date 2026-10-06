@@ -63,9 +63,10 @@
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI", 16.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             label1.ForeColor = Color.Navy;
-            label1.Location = new Point(110, 20);
+            label1.Location = new Point(138, 25);
+            label1.Margin = new Padding(4, 0, 4, 0);
             label1.Name = "label1";
-            label1.Size = new Size(139, 38);
+            label1.Size = new Size(164, 45);
             label1.TabIndex = 0;
             label1.Text = "Table List";
             // 
@@ -80,10 +81,11 @@
             btnCreate.FillColor = Color.RoyalBlue;
             btnCreate.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnCreate.ForeColor = Color.White;
-            btnCreate.Location = new Point(1662, 20);
+            btnCreate.Location = new Point(2078, 25);
+            btnCreate.Margin = new Padding(4, 4, 4, 4);
             btnCreate.Name = "btnCreate";
             btnCreate.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            btnCreate.Size = new Size(92, 41);
+            btnCreate.Size = new Size(115, 51);
             btnCreate.TabIndex = 1;
             btnCreate.Text = "Create";
             // 
@@ -98,10 +100,11 @@
             btnCreateTableList.FillColor = Color.RoyalBlue;
             btnCreateTableList.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnCreateTableList.ForeColor = Color.White;
-            btnCreateTableList.Location = new Point(110, 89);
+            btnCreateTableList.Location = new Point(138, 111);
+            btnCreateTableList.Margin = new Padding(4, 4, 4, 4);
             btnCreateTableList.Name = "btnCreateTableList";
             btnCreateTableList.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            btnCreateTableList.Size = new Size(174, 41);
+            btnCreateTableList.Size = new Size(218, 51);
             btnCreateTableList.TabIndex = 2;
             btnCreateTableList.Text = "Create Table List";
             // 
@@ -116,10 +119,11 @@
             btnSetImageAll.FillColor = Color.RoyalBlue;
             btnSetImageAll.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnSetImageAll.ForeColor = Color.White;
-            btnSetImageAll.Location = new Point(428, 90);
+            btnSetImageAll.Location = new Point(535, 112);
+            btnSetImageAll.Margin = new Padding(4, 4, 4, 4);
             btnSetImageAll.Name = "btnSetImageAll";
             btnSetImageAll.ShadowDecoration.CustomizableEdges = customizableEdges6;
-            btnSetImageAll.Size = new Size(264, 41);
+            btnSetImageAll.Size = new Size(330, 51);
             btnSetImageAll.TabIndex = 3;
             btnSetImageAll.Text = "Set Image for selected items";
             // 
@@ -136,10 +140,11 @@
             comboGroupTable.ForeColor = Color.FromArgb(68, 88, 112);
             comboGroupTable.ItemHeight = 30;
             comboGroupTable.Items.AddRange(new object[] { "All Group", "Main Table", "Delivery", "Take Out" });
-            comboGroupTable.Location = new Point(824, 94);
+            comboGroupTable.Location = new Point(1030, 118);
+            comboGroupTable.Margin = new Padding(4, 4, 4, 4);
             comboGroupTable.Name = "comboGroupTable";
             comboGroupTable.ShadowDecoration.CustomizableEdges = customizableEdges8;
-            comboGroupTable.Size = new Size(271, 36);
+            comboGroupTable.Size = new Size(338, 36);
             comboGroupTable.TabIndex = 33;
             // 
             // btnDeletebySelect
@@ -153,10 +158,11 @@
             btnDeletebySelect.FillColor = Color.RoyalBlue;
             btnDeletebySelect.Font = new Font("Segoe UI", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnDeletebySelect.ForeColor = Color.White;
-            btnDeletebySelect.Location = new Point(1212, 89);
+            btnDeletebySelect.Location = new Point(1515, 111);
+            btnDeletebySelect.Margin = new Padding(4, 4, 4, 4);
             btnDeletebySelect.Name = "btnDeletebySelect";
             btnDeletebySelect.ShadowDecoration.CustomizableEdges = customizableEdges10;
-            btnDeletebySelect.Size = new Size(174, 41);
+            btnDeletebySelect.Size = new Size(218, 51);
             btnDeletebySelect.TabIndex = 34;
             btnDeletebySelect.Text = "Delete By Select";
             // 
@@ -174,14 +180,14 @@
             txtSearch.Font = new Font("Segoe UI", 9F);
             txtSearch.ForeColor = Color.Silver;
             txtSearch.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            txtSearch.Location = new Point(1497, 89);
-            txtSearch.Margin = new Padding(3, 4, 3, 4);
+            txtSearch.Location = new Point(1871, 111);
+            txtSearch.Margin = new Padding(4, 5, 4, 5);
             txtSearch.Name = "txtSearch";
             txtSearch.PlaceholderForeColor = Color.Silver;
             txtSearch.PlaceholderText = "Search............................................................";
             txtSearch.SelectedText = "";
             txtSearch.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            txtSearch.Size = new Size(257, 42);
+            txtSearch.Size = new Size(321, 52);
             txtSearch.TabIndex = 35;
             // 
             // dgvDataTableList
@@ -208,11 +214,13 @@
             dataGridViewCellStyle3.WrapMode = DataGridViewTriState.False;
             dgvDataTableList.DefaultCellStyle = dataGridViewCellStyle3;
             dgvDataTableList.GridColor = Color.FromArgb(231, 229, 255);
-            dgvDataTableList.Location = new Point(110, 163);
+            dgvDataTableList.Location = new Point(138, 204);
+            dgvDataTableList.Margin = new Padding(4, 4, 4, 4);
             dgvDataTableList.Name = "dgvDataTableList";
             dgvDataTableList.RowHeadersVisible = false;
             dgvDataTableList.RowHeadersWidth = 51;
-            dgvDataTableList.Size = new Size(1644, 111);
+            dgvDataTableList.RowTemplate.Height = 29;
+            dgvDataTableList.Size = new Size(2055, 139);
             dgvDataTableList.TabIndex = 36;
             dgvDataTableList.ThemeStyle.AlternatingRowsStyle.BackColor = Color.White;
             dgvDataTableList.ThemeStyle.HeaderStyle.BackColor = Color.White;
@@ -253,7 +261,7 @@
             // 
             // TableList
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             Controls.Add(dgvDataTableList);
@@ -264,8 +272,10 @@
             Controls.Add(btnCreateTableList);
             Controls.Add(btnCreate);
             Controls.Add(label1);
+            Margin = new Padding(4, 4, 4, 4);
             Name = "TableList";
-            Size = new Size(1835, 794);
+            Size = new Size(2294, 992);
+            Load += TableList_Load;
             ((System.ComponentModel.ISupportInitialize)dgvDataTableList).EndInit();
             ResumeLayout(false);
             PerformLayout();
