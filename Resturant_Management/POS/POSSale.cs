@@ -447,7 +447,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                     Width = 520,
                     Height = 740,
                     StartPosition = FormStartPosition.CenterParent,
-                    Text = $"Print Preview (80mm) - Invoice {_currentOrderNo}"
+                    Text = $"Print Preview (80x80) - Invoice {_currentOrderNo}"
                 };
 
                 var ppc = preview.Controls.OfType<PrintPreviewControl>().FirstOrDefault();
@@ -468,7 +468,7 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
             }
         }
 
-        /// <summary>Builds the invoice as one continuous 80mm-wide page whose length fits the content (same as the receipt).</summary>
+        /// <summary>Builds the invoice as a single 80mm x 80mm page.</summary>
         internal System.Drawing.Printing.PrintDocument BuildInvoicePrintDocument(DateTime timeIn, DateTime timeOut)
         {
             // Measure on the printer's own graphics so the page length matches what is printed
@@ -485,15 +485,24 @@ WHERE i.ItemCode = @code AND i.IsInactive = 0";
                 using Graphics bg = Graphics.FromImage(bmp);
                 contentHeight = Render80mmInvoice(bg, timeIn, timeOut);
             }
-            int pageHeight = Math.Max(315, (int)Math.Ceiling(contentHeight) + 20);
+            // Fixed 80mm x 80mm page (315 x 315 hundredths of an inch); a long invoice is scaled down to fit on the one page
+            const int pageSize = 315;
+            const float bottomPad = 6f;
+            float scale = Math.Min(1f, (pageSize - bottomPad) / contentHeight);
+            float offsetX = pageSize * (1f - scale) / 2f;
 
             printDoc.DocumentName = $"Invoice_{_currentOrderNo}";
-            // 80mm width in hundredths of an inch is 315 (80mm / 25.4 * 100)
-            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80mm Thermal", 315, pageHeight);
+            printDoc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("80 x 80mm", pageSize, pageSize);
             printDoc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
             printDoc.PrintPage += (ps, pe) =>
             {
-                if (pe.Graphics != null) Render80mmInvoice(pe.Graphics, timeIn, timeOut);
+                if (pe.Graphics == null) return;
+                if (scale < 1f)
+                {
+                    pe.Graphics.TranslateTransform(offsetX, 0);
+                    pe.Graphics.ScaleTransform(scale, scale);
+                }
+                Render80mmInvoice(pe.Graphics, timeIn, timeOut);
             };
             return printDoc;
         }
