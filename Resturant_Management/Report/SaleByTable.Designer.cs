@@ -57,10 +57,6 @@ namespace Resturant_Management.Report
             lbCreator = new Label();
             comboCreator = new Guna.UI2.WinForms.Guna2ComboBox();
             cmbTypeReport = new Guna.UI2.WinForms.Guna2ComboBox();
-            lbTimeTo = new Label();
-            label3 = new Label();
-            TimeFrom = new Guna.UI2.WinForms.Guna2DateTimePicker();
-            TimeTo = new Guna.UI2.WinForms.Guna2DateTimePicker();
             lbGrandTotal = new Label();
             lbTotalAfterDisc = new Label();
             lbTotalAfterDis = new Label();
@@ -101,10 +97,6 @@ namespace Resturant_Management.Report
             pnlInfoReportSale.Controls.Add(lbCreator);
             pnlInfoReportSale.Controls.Add(comboCreator);
             pnlInfoReportSale.Controls.Add(cmbTypeReport);
-            pnlInfoReportSale.Controls.Add(lbTimeTo);
-            pnlInfoReportSale.Controls.Add(label3);
-            pnlInfoReportSale.Controls.Add(TimeFrom);
-            pnlInfoReportSale.Controls.Add(TimeTo);
             pnlInfoReportSale.Controls.Add(lbGrandTotal);
             pnlInfoReportSale.Controls.Add(lbTotalAfterDisc);
             pnlInfoReportSale.Controls.Add(lbTotalAfterDis);
@@ -237,68 +229,6 @@ namespace Resturant_Management.Report
             cmbTypeReport.ShadowDecoration.CustomizableEdges = customizableEdges8;
             cmbTypeReport.Size = new Size(260, 42);
             cmbTypeReport.TabIndex = 67;
-            // 
-            // lbTimeTo
-            // 
-            lbTimeTo.AutoSize = true;
-            lbTimeTo.Location = new Point(872, 85);
-            lbTimeTo.Name = "lbTimeTo";
-            lbTimeTo.Size = new Size(62, 20);
-            lbTimeTo.TabIndex = 65;
-            lbTimeTo.Text = "Time To";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Location = new Point(872, 8);
-            label3.Name = "label3";
-            label3.Size = new Size(80, 20);
-            label3.TabIndex = 64;
-            label3.Text = "Time From";
-            // 
-            // TimeFrom
-            // 
-            TimeFrom.BackColor = Color.Transparent;
-            TimeFrom.BorderColor = Color.FromArgb(213, 218, 223);
-            TimeFrom.BorderRadius = 6;
-            TimeFrom.BorderThickness = 1;
-            TimeFrom.Checked = true;
-            TimeFrom.CustomFormat = "hh:mm:ss tt";
-            TimeFrom.CustomizableEdges = customizableEdges9;
-            TimeFrom.FillColor = Color.White;
-            TimeFrom.Font = new Font("Segoe UI", 9.5F);
-            TimeFrom.ForeColor = Color.FromArgb(68, 88, 112);
-            TimeFrom.Format = DateTimePickerFormat.Custom;
-            TimeFrom.Location = new Point(872, 31);
-            TimeFrom.MaxDate = new DateTime(9998, 12, 31, 0, 0, 0, 0);
-            TimeFrom.MinDate = new DateTime(1753, 1, 1, 0, 0, 0, 0);
-            TimeFrom.Name = "TimeFrom";
-            TimeFrom.ShadowDecoration.CustomizableEdges = customizableEdges10;
-            TimeFrom.Size = new Size(240, 48);
-            TimeFrom.TabIndex = 61;
-            TimeFrom.Value = new DateTime(2026, 9, 29, 0, 0, 0, 0);
-            // 
-            // TimeTo
-            // 
-            TimeTo.BackColor = Color.Transparent;
-            TimeTo.BorderColor = Color.FromArgb(213, 218, 223);
-            TimeTo.BorderRadius = 6;
-            TimeTo.BorderThickness = 1;
-            TimeTo.Checked = true;
-            TimeTo.CustomFormat = "hh:mm:ss tt";
-            TimeTo.CustomizableEdges = customizableEdges11;
-            TimeTo.FillColor = Color.White;
-            TimeTo.Font = new Font("Segoe UI", 9.5F);
-            TimeTo.ForeColor = Color.FromArgb(68, 88, 112);
-            TimeTo.Format = DateTimePickerFormat.Custom;
-            TimeTo.Location = new Point(872, 108);
-            TimeTo.MaxDate = new DateTime(9998, 12, 31, 0, 0, 0, 0);
-            TimeTo.MinDate = new DateTime(1753, 1, 1, 0, 0, 0, 0);
-            TimeTo.Name = "TimeTo";
-            TimeTo.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            TimeTo.Size = new Size(240, 48);
-            TimeTo.TabIndex = 60;
-            TimeTo.Value = new DateTime(2026, 9, 29, 0, 0, 0, 0);
             // 
             // lbGrandTotal
             // 
@@ -502,10 +432,6 @@ namespace Resturant_Management.Report
         private Label lbCreator;
         private Guna.UI2.WinForms.Guna2ComboBox comboCreator;
         private Guna.UI2.WinForms.Guna2ComboBox cmbTypeReport;
-        private Label lbTimeTo;
-        private Label label3;
-        private Guna.UI2.WinForms.Guna2DateTimePicker TimeFrom;
-        private Guna.UI2.WinForms.Guna2DateTimePicker TimeTo;
         private Label lbGrandTotal;
         private Label lbTotalAfterDisc;
         private Label lbTotalAfterDis;

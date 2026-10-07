@@ -50,8 +50,6 @@ namespace Resturant_Management.Report
             colDisItem = new DataGridViewTextBoxColumn();
             colTotalAtferDis = new DataGridViewTextBoxColumn();
             colPaid = new DataGridViewTextBoxColumn();
-            lbTimeTo = new Label();
-            label3 = new Label();
             lbDateTo = new Label();
             lbDateFrom = new Label();
             label1 = new Label();
@@ -60,8 +58,6 @@ namespace Resturant_Management.Report
             cmbTypeReport = new Guna.UI2.WinForms.Guna2ComboBox();
             DateFrom = new Guna.UI2.WinForms.Guna2DateTimePicker();
             DateTo = new Guna.UI2.WinForms.Guna2DateTimePicker();
-            TimeFrom = new Guna.UI2.WinForms.Guna2DateTimePicker();
-            TimeTo = new Guna.UI2.WinForms.Guna2DateTimePicker();
             btnFilter = new Guna.UI2.WinForms.Guna2Button();
             pnlInfoReportSale.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)gridDataitem).BeginInit();
@@ -87,8 +83,6 @@ namespace Resturant_Management.Report
             pnlInfoReportSale.Controls.Add(lbTotalBeforeDis);
             pnlInfoReportSale.Controls.Add(txtSearch);
             pnlInfoReportSale.Controls.Add(gridDataitem);
-            pnlInfoReportSale.Controls.Add(lbTimeTo);
-            pnlInfoReportSale.Controls.Add(label3);
             pnlInfoReportSale.Controls.Add(lbDateTo);
             pnlInfoReportSale.Controls.Add(lbDateFrom);
             pnlInfoReportSale.Controls.Add(label1);
@@ -97,8 +91,6 @@ namespace Resturant_Management.Report
             pnlInfoReportSale.Controls.Add(cmbTypeReport);
             pnlInfoReportSale.Controls.Add(DateFrom);
             pnlInfoReportSale.Controls.Add(DateTo);
-            pnlInfoReportSale.Controls.Add(TimeFrom);
-            pnlInfoReportSale.Controls.Add(TimeTo);
             pnlInfoReportSale.Controls.Add(btnFilter);
             pnlInfoReportSale.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             pnlInfoReportSale.FillColor = Color.White;
@@ -265,24 +257,6 @@ namespace Resturant_Management.Report
             colPaid.MinimumWidth = 6;
             colPaid.Name = "colPaid";
             // 
-            // lbTimeTo
-            // 
-            lbTimeTo.AutoSize = true;
-            lbTimeTo.Location = new Point(685, 85);
-            lbTimeTo.Name = "lbTimeTo";
-            lbTimeTo.Size = new Size(62, 20);
-            lbTimeTo.TabIndex = 51;
-            lbTimeTo.Text = "Time To";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Location = new Point(685, 8);
-            label3.Name = "label3";
-            label3.Size = new Size(80, 20);
-            label3.TabIndex = 50;
-            label3.Text = "Time From";
-            // 
             // lbDateTo
             // 
             lbDateTo.AutoSize = true;
@@ -399,50 +373,6 @@ namespace Resturant_Management.Report
             DateTo.TabIndex = 37;
             DateTo.Value = new DateTime(2026, 9, 29, 0, 0, 0, 0);
             // 
-            // TimeFrom
-            // 
-            TimeFrom.BackColor = Color.Transparent;
-            TimeFrom.BorderColor = Color.FromArgb(213, 218, 223);
-            TimeFrom.BorderRadius = 6;
-            TimeFrom.BorderThickness = 1;
-            TimeFrom.Checked = true;
-            TimeFrom.CustomFormat = "hh:mm:ss tt";
-            TimeFrom.CustomizableEdges = customizableEdges11;
-            TimeFrom.FillColor = Color.White;
-            TimeFrom.Font = new Font("Segoe UI", 9.5F);
-            TimeFrom.ForeColor = Color.FromArgb(68, 88, 112);
-            TimeFrom.Format = DateTimePickerFormat.Custom;
-            TimeFrom.Location = new Point(685, 31);
-            TimeFrom.MaxDate = new DateTime(9998, 12, 31, 0, 0, 0, 0);
-            TimeFrom.MinDate = new DateTime(1753, 1, 1, 0, 0, 0, 0);
-            TimeFrom.Name = "TimeFrom";
-            TimeFrom.ShadowDecoration.CustomizableEdges = customizableEdges12;
-            TimeFrom.Size = new Size(240, 48);
-            TimeFrom.TabIndex = 45;
-            TimeFrom.Value = new DateTime(2026, 9, 29, 0, 0, 0, 0);
-            // 
-            // TimeTo
-            // 
-            TimeTo.BackColor = Color.Transparent;
-            TimeTo.BorderColor = Color.FromArgb(213, 218, 223);
-            TimeTo.BorderRadius = 6;
-            TimeTo.BorderThickness = 1;
-            TimeTo.Checked = true;
-            TimeTo.CustomFormat = "hh:mm:ss tt";
-            TimeTo.CustomizableEdges = customizableEdges13;
-            TimeTo.FillColor = Color.White;
-            TimeTo.Font = new Font("Segoe UI", 9.5F);
-            TimeTo.ForeColor = Color.FromArgb(68, 88, 112);
-            TimeTo.Format = DateTimePickerFormat.Custom;
-            TimeTo.Location = new Point(685, 108);
-            TimeTo.MaxDate = new DateTime(9998, 12, 31, 0, 0, 0, 0);
-            TimeTo.MinDate = new DateTime(1753, 1, 1, 0, 0, 0, 0);
-            TimeTo.Name = "TimeTo";
-            TimeTo.ShadowDecoration.CustomizableEdges = customizableEdges14;
-            TimeTo.Size = new Size(240, 48);
-            TimeTo.TabIndex = 44;
-            TimeTo.Value = new DateTime(2026, 9, 29, 0, 0, 0, 0);
-            // 
             // btnFilter
             // 
             btnFilter.BorderRadius = 6;
@@ -484,15 +414,11 @@ namespace Resturant_Management.Report
         private Guna.UI2.WinForms.Guna2DateTimePicker DateFrom;
         private Guna.UI2.WinForms.Guna2DateTimePicker DateTo;
         private Guna.UI2.WinForms.Guna2Button btnFilter;
-        private Guna.UI2.WinForms.Guna2DateTimePicker TimeFrom;
-        private Guna.UI2.WinForms.Guna2DateTimePicker TimeTo;
         private Guna.UI2.WinForms.Guna2ComboBox comboCreator;
         private Guna.UI2.WinForms.Guna2ComboBox cmbTypeReport;
         private Label lbCreator;
         private Label lbDateFrom;
         private Label label1;
-        private Label lbTimeTo;
-        private Label label3;
         private Label lbDateTo;
         private Guna.UI2.WinForms.Guna2DataGridView gridDataitem;
         private DataGridViewTextBoxColumn colNo;

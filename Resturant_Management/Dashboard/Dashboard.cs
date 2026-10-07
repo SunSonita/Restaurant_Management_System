@@ -645,56 +645,80 @@ namespace Resturant_Management
             ShowDashboard();
         }
 
+        // Converts an order amount to USD using the rate saved on that order (KHR orders), falling back to 4000
+        private const string OrderUsdRate =
+            "CASE WHEN o.CurrencyCode = 'USD' THEN 1 ELSE ISNULL(NULLIF(o.ExchangeRate, 0), 4000) END";
+
+        private string? _lastDashboardError;
+
         private void RefreshDashboardData()
         {
+            var errors = new List<string>();
+
+            // 1-3. KPIs for today's paid orders
             try
             {
-                // 1. Sales Today
-                string sqlSalesToday = @"
-SELECT ISNULL(SUM(GrandTotal), 0) 
-FROM dbo.SALE_ORDER 
-WHERE Status = 'Paid' AND CAST(PostingDate AS date) = CAST(SYSDATETIME() AS date);";
-                object? resSales = DbHelper.ExecuteScalar(sqlSalesToday);
-                decimal salesKHR = resSales != null && resSales != DBNull.Value ? Convert.ToDecimal(resSales) : 0m;
-                decimal salesUSD = salesKHR / 4000m;
-                if (lblKpiSalesToday != null) lblKpiSalesToday.Text = $"{salesUSD:N2} USD";
-
-                // 2. Average Sales Amount
-                string sqlAvgAmount = @"
-SELECT ISNULL(AVG(GrandTotal), 0) 
-FROM dbo.SALE_ORDER 
-WHERE Status = 'Paid' AND CAST(PostingDate AS date) = CAST(SYSDATETIME() AS date);";
-                object? resAvgAmt = DbHelper.ExecuteScalar(sqlAvgAmount);
-                decimal avgAmt = resAvgAmt != null && resAvgAmt != DBNull.Value ? Convert.ToDecimal(resAvgAmt) : 0m;
-                decimal avgAmtUSD = avgAmt / 4000m;
-                if (lblKpiAvgSaleAmount != null) lblKpiAvgSaleAmount.Text = $"{avgAmtUSD:N2} USD";
-
-                // 3. Average Sales Qty
-                string sqlAvgQty = @"
-SELECT ISNULL(AVG(oi.Qty), 0)
-FROM dbo.SALE_ORDER_ITEM oi
-JOIN dbo.SALE_ORDER o ON oi.OrderID = o.OrderID
+                string sqlKpi = $@"
+SELECT
+    ISNULL(SUM(o.GrandTotal / {OrderUsdRate}), 0) AS SalesUSD,
+    ISNULL(AVG(o.GrandTotal / {OrderUsdRate}), 0) AS AvgSaleUSD,
+    COUNT(*) AS OrderCount,
+    ISNULL((SELECT SUM(oi.Qty)
+            FROM dbo.SALE_ORDER_ITEM oi
+            JOIN dbo.SALE_ORDER o2 ON o2.OrderID = oi.OrderID
+            WHERE o2.Status = 'Paid'
+              AND CAST(o2.PostingDate AS date) = CAST(SYSDATETIME() AS date)), 0) AS TotalQty
+FROM dbo.SALE_ORDER o
 WHERE o.Status = 'Paid' AND CAST(o.PostingDate AS date) = CAST(SYSDATETIME() AS date);";
-                object? resAvgQty = DbHelper.ExecuteScalar(sqlAvgQty);
-                decimal avgQty = resAvgQty != null && resAvgQty != DBNull.Value ? Convert.ToDecimal(resAvgQty) : 0m;
-                if (lblKpiAvgSaleQty != null) lblKpiAvgSaleQty.Text = $"{avgQty:N2}";
 
-                // 4. Pie Chart: vw_SaleByGroup
+                DataTable dtKpi = DbHelper.ExecuteQuery(sqlKpi);
+                DataRow k = dtKpi.Rows[0];
+                decimal salesUSD = Convert.ToDecimal(k["SalesUSD"]);
+                decimal avgSaleUSD = Convert.ToDecimal(k["AvgSaleUSD"]);
+                int orderCount = Convert.ToInt32(k["OrderCount"]);
+                decimal totalQty = Convert.ToDecimal(k["TotalQty"]);
+                // Average items sold per paid order
+                decimal avgQty = orderCount > 0 ? totalQty / orderCount : 0m;
+
+                if (lblKpiSalesToday != null) lblKpiSalesToday.Text = $"{salesUSD:N2} USD";
+                if (lblKpiAvgSaleAmount != null) lblKpiAvgSaleAmount.Text = $"{avgSaleUSD:N2} USD";
+                if (lblKpiAvgSaleQty != null) lblKpiAvgSaleQty.Text = $"{avgQty:N2}";
+            }
+            catch (Exception ex)
+            {
+                errors.Add("KPIs: " + ex.Message);
+            }
+
+            // 4. Pie Chart: paid sales by product group (USD)
+            try
+            {
                 if (pieChart != null && pieChart.Series.Count > 0)
                 {
                     var series = pieChart.Series[0];
                     series.Points.Clear();
 
-                    DataTable dtPie = DbHelper.ExecuteQuery("SELECT GroupName, Amount FROM dbo.vw_SaleByGroup;");
+                    string sqlPie = $@"
+SELECT g.GroupName, SUM(oi.TotalAfterDis / {OrderUsdRate}) AS AmountUSD
+FROM dbo.SALE_ORDER_ITEM oi
+JOIN dbo.SALE_ORDER o ON o.OrderID = oi.OrderID AND o.Status = 'Paid'
+JOIN dbo.ITEM i ON i.ItemID = oi.ItemID
+JOIN dbo.ITEM_GROUP g ON g.GroupID = i.GroupID
+GROUP BY g.GroupName
+HAVING SUM(oi.TotalAfterDis) > 0
+ORDER BY AmountUSD DESC;";
+
+                    DataTable dtPie = DbHelper.ExecuteQuery(sqlPie);
                     if (dtPie.Rows.Count > 0)
                     {
                         series.IsValueShownAsLabel = true;
+                        series.LabelFormat = "N2";
                         foreach (DataRow r in dtPie.Rows)
                         {
                             string gName = r["GroupName"]?.ToString() ?? "";
-                            decimal amt = r["Amount"] != DBNull.Value ? Convert.ToDecimal(r["Amount"]) : 0m;
-                            decimal amtUSD = amt / 4000m;
-                            series.Points.AddXY(gName, amtUSD);
+                            decimal amtUSD = r["AmountUSD"] != DBNull.Value ? Convert.ToDecimal(r["AmountUSD"]) : 0m;
+                            int idx = series.Points.AddXY(gName, Math.Round(amtUSD, 2));
+                            series.Points[idx].LegendText = gName;
+                            series.Points[idx].Label = $"{amtUSD:N2}";
                         }
                     }
                     else
@@ -704,8 +728,15 @@ WHERE o.Status = 'Paid' AND CAST(o.PostingDate AS date) = CAST(SYSDATETIME() AS 
                         series.Points[idx].Color = Color.LightGray;
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                errors.Add("Sale by group: " + ex.Message);
+            }
 
-                // 5. Bar Chart: Monthly sales performance for current year
+            // 5. Bar Chart: monthly paid sales for the current year (USD)
+            try
+            {
                 if (barChart != null && barChart.Series.Count > 0)
                 {
                     var series = barChart.Series[0];
@@ -714,33 +745,64 @@ WHERE o.Status = 'Paid' AND CAST(o.PostingDate AS date) = CAST(SYSDATETIME() AS 
                     string[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
                     decimal[] monthValues = new decimal[12];
 
-                    string sqlMonthly = @"
-SELECT MONTH(PostingDate) AS [Month], ISNULL(SUM(GrandTotal), 0) AS TotalAmount
-FROM dbo.SALE_ORDER
-WHERE Status = 'Paid' AND YEAR(PostingDate) = YEAR(GETDATE())
-GROUP BY MONTH(PostingDate);";
+                    string sqlMonthly = $@"
+SELECT MONTH(o.PostingDate) AS [Month], ISNULL(SUM(o.GrandTotal / {OrderUsdRate}), 0) AS TotalUSD
+FROM dbo.SALE_ORDER o
+WHERE o.Status = 'Paid' AND YEAR(o.PostingDate) = YEAR(SYSDATETIME())
+GROUP BY MONTH(o.PostingDate);";
 
                     DataTable dtMonthly = DbHelper.ExecuteQuery(sqlMonthly);
                     foreach (DataRow r in dtMonthly.Rows)
                     {
                         int m = Convert.ToInt32(r["Month"]);
                         if (m >= 1 && m <= 12)
-                        {
-                            decimal tot = Convert.ToDecimal(r["TotalAmount"]);
-                            monthValues[m - 1] = tot / 4000m;
-                        }
+                            monthValues[m - 1] = Convert.ToDecimal(r["TotalUSD"]);
                     }
 
+                    // Numeric X (1-12) keeps each month in its own slot; string X values after
+                    // Points.Clear() can collapse every point onto one position
+                    series.XValueType = ChartValueType.Int32;
+                    series.IsXValueIndexed = false;
                     for (int i = 0; i < months.Length; i++)
                     {
-                        int pIndex = series.Points.AddXY(months[i], monthValues[i]);
+                        int pIndex = series.Points.AddXY(i + 1, Math.Round(monthValues[i], 2));
                         series.Points[pIndex].AxisLabel = months[i];
+                        // Label only months that have sales
+                        if (monthValues[i] > 0)
+                            series.Points[pIndex].Label = $"{monthValues[i]:N2}";
                     }
+
+                    ChartArea area = barChart.ChartAreas[0];
+                    area.AxisX.Minimum = 0.5;
+                    area.AxisX.Maximum = 12.5;
+                    area.AxisX.Interval = 1;
+
+                    // Scale the Y-axis to the real data (the empty-state chart fixes it at 0-1000)
+                    area.AxisY.Minimum = 0;
+                    area.AxisY.Maximum = monthValues.Max() > 0 ? double.NaN : 1000;
+                    area.AxisY.LabelStyle.Format = "N0";
+                    area.RecalculateAxesScale();
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error refreshing dashboard: {ex.Message}");
+                errors.Add("Monthly sales: " + ex.Message);
+            }
+
+            if (errors.Count == 0)
+            {
+                _lastDashboardError = null;
+                return;
+            }
+
+            string message = string.Join("\n", errors);
+            System.Diagnostics.Debug.WriteLine($"Error refreshing dashboard: {message}");
+            // Show each distinct error once instead of failing silently
+            if (message != _lastDashboardError)
+            {
+                _lastDashboardError = message;
+                MessageBox.Show($"Some dashboard data could not be loaded:\n\n{message}",
+                    "Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 

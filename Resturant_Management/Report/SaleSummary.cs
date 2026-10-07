@@ -43,8 +43,6 @@ namespace Resturant_Management.Report
             {
                 DateFrom.Value = DateTime.Today.AddDays(-7);
                 DateTo.Value = DateTime.Today;
-                TimeFrom.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 0, 0, 0);
-                TimeTo.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 23, 59, 59);
 
                 // Populate Creator ComboBox
                 comboCreator.Items.Clear();
@@ -75,14 +73,15 @@ namespace Resturant_Management.Report
         {
             gridDataitem.Rows.Clear();
 
-            DateTime startDateTime = DateFrom.Value.Date + TimeFrom.Value.TimeOfDay;
-            DateTime endDateTime = DateTo.Value.Date + TimeTo.Value.TimeOfDay;
+            // Whole days: from the start of Date From up to (not including) the day after Date To
+            DateTime startDateTime = DateFrom.Value.Date;
+            DateTime endExclusive = DateTo.Value.Date.AddDays(1);
 
-            if (endDateTime < startDateTime)
+            if (DateTo.Value.Date < DateFrom.Value.Date)
             {
                 if (isExplicitFilter)
                 {
-                    MessageBox.Show("End Date & Time cannot be earlier than Start Date & Time.",
+                    MessageBox.Show("Date To cannot be earlier than Date From.",
                                     "Validation Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 return;
@@ -118,7 +117,7 @@ SELECT
     SUM(TotalAfterDis) AS TotalAfterDis,
     SUM(Paid) AS Paid
 FROM dbo.vw_SaleSummary
-WHERE (PostingDate >= @Start AND PostingDate <= @End)
+WHERE (PostingDate >= @Start AND PostingDate < @End)
   AND (@Creator = 'All Creators' OR Creator = @Creator)
   AND (@Search = '' OR CONVERT(varchar(10), PostingDate, 120) LIKE @Pattern)
 GROUP BY CONVERT(varchar(10), PostingDate, 120)
@@ -126,7 +125,7 @@ ORDER BY PostDate DESC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
-                        new SqlParameter("@End", endDateTime),
+                        new SqlParameter("@End", endExclusive),
                         new SqlParameter("@Creator", selectedCreator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
@@ -164,7 +163,7 @@ SELECT
     SUM(TotalAfterDis) AS TotalAfterDis,
     SUM(Paid) AS Paid
 FROM dbo.vw_SaleSummary
-WHERE (PostingDate >= @Start AND PostingDate <= @End)
+WHERE (PostingDate >= @Start AND PostingDate < @End)
   AND (@Creator = 'All Creators' OR Creator = @Creator)
   AND (@Search = '' OR Creator LIKE @Pattern)
 GROUP BY Creator
@@ -172,7 +171,7 @@ ORDER BY Creator ASC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
-                        new SqlParameter("@End", endDateTime),
+                        new SqlParameter("@End", endExclusive),
                         new SqlParameter("@Creator", selectedCreator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
@@ -213,14 +212,14 @@ SELECT
     TotalAfterDis,
     Paid
 FROM dbo.vw_SaleSummary
-WHERE (PostingDate >= @Start AND PostingDate <= @End)
+WHERE (PostingDate >= @Start AND PostingDate < @End)
   AND (@Creator = 'All Creators' OR Creator = @Creator)
   AND (@Search = '' OR OrderNo LIKE @Pattern OR Creator LIKE @Pattern)
 ORDER BY PostingDate DESC;";
 
                     dt = DbHelper.ExecuteQuery(sql,
                         new SqlParameter("@Start", startDateTime),
-                        new SqlParameter("@End", endDateTime),
+                        new SqlParameter("@End", endExclusive),
                         new SqlParameter("@Creator", selectedCreator),
                         new SqlParameter("@Search", search),
                         new SqlParameter("@Pattern", $"%{search}%"));
